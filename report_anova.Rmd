@@ -1,0 +1,508 @@
+---
+title: "XPInfant `r sprintf('roi-%s',roi)`"
+author: "Tomas Lenc"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document: 
+    code_folding: hide
+    toc: true
+    toc_float: 
+      collapsed: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(pander)
+library(doBy)
+library(Rmisc)
+library(plyr)
+library(dplyr)
+library(gtools)
+
+library(ez)
+library(lme4)
+library(lmerTest)
+library(car)
+library(emmeans)
+
+library(ggplot2)
+library(cowplot)
+library(colorspace)
+library(ggnewscale)
+
+# define functions 
+source('utils.R')
+```
+
+```{r}
+# define parameters
+rm_sub <- c(1,14,15,16,18)
+
+frex <- round(1/2.4 * c(2:12), 3)
+frex_meterRel <- round(1/2.4 * c(3,6,9,12), 3)
+
+adjust_method = 'bonferroni'
+
+# parameters for plotting 
+cols <- c(low='#b24de8', high='#db8025')
+cols_individual <- lighten(cols, amount=0.5)
+fontsize <-14
+
+```
+
+<br><br><br>
+
+--- 
+
+# Main analysis
+
+```{r}
+# load data
+path_features <- sprintf('/datadisk/Dropbox/projects/XPInfant/derivatives/features/features_roi-%s.csv', roi)
+df_feat <- read.csv(path_features)
+df_feat$subject <- factor(df_feat$subject)
+df_feat$rhythm <- factor(df_feat$rhythm, levels=c('unsync','sync'))
+df_feat$tone <- factor(df_feat$tone, levels=c('low','high'))
+
+# remove bad subjects 
+df_feat <- filter(df_feat, !subject%in%rm_sub)
+
+```
+
+
+```{r}
+# print a table summarizing frequencies of interest
+pander(get_frex_report(frex, frex_meterRel), caption='Frequencies of interest.')
+
+```
+
+```{r}
+# apply the current selectino of meter-related/unrelated frequencies. 
+data <- prepare_frex(df_feat, frex, frex_meterRel)
+df_amp_mean <- data$mean_amp
+df_meter <- data$meter
+df_meterRel <-  filter(data$meter, isMeterRel==TRUE)
+
+```
+
+```{r}
+knitr::include_graphics(file.path(sprintf('../figures/roi-%s/roi-%s_summaryGrand.png',roi,roi)))
+```
+
+
+<br><br>
+
+## Overall response magnitude
+
+```{r, fig.width=4, fig.height=2}
+plot_amp_mean(df_amp_mean)
+```
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_amp_mean, dv=amp_eeg, wid=subject, within=.(rhythm,tone)))
+pander(res, justify='left',
+       caption='ANOVA on mean amplitude across all frequencies of interest (i.e. overall response magnitude).')
+```
+
+
+<br><br>
+
+## Meter zscore 
+
+```{r}
+pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_coch) %>% mutate(z_coch=round(z_coch,2)), 
+       justify='left', caption='Mean meter-related zscore for the cochlear model.')
+```
+
+For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_coch[1],3)` for the high tone. 
+
+```{r, fig.width=4, fig.height=2}
+plot_z_meter(df_meterRel)
+```
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meterRel, dv=z_eeg, wid=subject, within=.(rhythm,tone)))
+pander(res, justify='left',
+       caption='ANOVA on mean zscore at meter-related frequencies.')
+```
+
+```{r}
+# test meter-rel zscore against 0
+res <- ddply(df_meterRel, .(rhythm,tone), tVs0)
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+       caption='T-test of mean z-score at meter-related frequencies against zero.')
+```
+
+```{r}
+# test meter-rel zscore against cochlear model 
+res <- ddply(df_meterRel, .(rhythm,tone), tVsCoch)
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+       caption='T-test of mean z-score at meter-related frequencies against cochlear model.')
+```
+
+
+<br><br>
+
+## Meter amp (normalized) 
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meter, dv=amp_eeg_norm, wid=subject, within=.(rhythm,tone,isMeterRel)))
+pander(res, 
+       justify='left',
+       caption='ANOVA on mean mean normalized amplitude (between 0-1) at meter-related vs. -unrelated frequencies.')
+```
+
+<br><br>
+
+## Meter amp (raw) 
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meter, dv=amp_eeg, wid=subject, within=.(rhythm,tone,isMeterRel)))
+pander(res, 
+       justify='left',
+       caption='ANOVA on mean raw amplitude at meter-related vs. -unrelated frequencies.')
+```
+
+
+
+<br><br><br>
+
+--- 
+
+# Control analysis (without 5Hz)
+
+```{r}
+# Define new selection of frequencies. 
+frex <- round(1/2.4 * c(2:11), 3)
+frex_meterRel <- round(1/2.4 * c(3,6,9), 3)
+
+# print a table summarizing frequencies of interest
+pander(get_frex_report(frex, frex_meterRel), caption='Frequencies of interest.')
+```
+
+```{r}
+# apply the current selectino of meter-related/unrelated frequencies. 
+data <- prepare_frex(df_feat, frex, frex_meterRel)
+df_amp_mean <- data$mean_amp
+df_meter <- data$meter
+df_meterRel <-  filter(data$meter, isMeterRel==TRUE)
+```
+
+<br><br>
+
+## Overall response magnitude
+
+```{r, fig.width=4, fig.height=2}
+plot_amp_mean(df_amp_mean)
+```
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_amp_mean, dv=amp_eeg, wid=subject, within=.(rhythm,tone)))
+pander(res, justify='left',
+       caption='ANOVA on mean amplitude across all frequencies of interest (i.e. overall response magnitude).')
+```
+
+
+<br><br>
+
+## Meter zscore 
+
+```{r}
+pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_coch) %>% mutate(z_coch=round(z_coch,2)), 
+       justify='left', caption='Mean meter-related zscore for the cochlear model.')
+```
+
+For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_coch[1],3)` for the high tone. 
+
+```{r, fig.width=4, fig.height=2}
+plot_z_meter(df_meterRel)
+```
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meterRel, dv=z_eeg, wid=subject, within=.(rhythm,tone)))
+pander(res, justify='left',
+       caption='ANOVA on mean zscore at meter-related frequencies.')
+```
+
+```{r}
+# test meter-rel zscore against 0
+res <- ddply(df_meterRel, .(rhythm,tone), tVs0)
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+       caption='T-test of mean z-score at meter-related frequencies against zero.')
+```
+
+```{r}
+# test meter-rel zscore against cochlear model 
+res <- ddply(df_meterRel, .(rhythm,tone), tVsCoch)
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+       caption='T-test of mean z-score at meter-related frequencies against cochlear model.')
+```
+
+
+<br><br>
+
+## Meter amp (normalized) 
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meter, dv=amp_eeg_norm, wid=subject, within=.(rhythm,tone,isMeterRel)))
+pander(res, 
+       justify='left',
+       caption='ANOVA on mean mean normalized amplitude (between 0-1) at meter-related vs. -unrelated frequencies.')
+```
+
+<br><br>
+
+## Meter amp (raw) 
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meter, dv=amp_eeg, wid=subject, within=.(rhythm,tone,isMeterRel)))
+pander(res, 
+       justify='left',
+       caption='ANOVA on mean raw amplitude at meter-related vs. -unrelated frequencies.')
+```
+
+
+
+
+<br><br><br>
+
+--- 
+
+# Control analysis (without 0.83Hz)
+
+```{r}
+# Define new selection of frequencies. 
+frex <- round(1/2.4 * c(3:12), 3)
+frex_meterRel <- round(1/2.4 * c(3,6,9,12), 3)
+
+# print a table summarizing frequencies of interest
+pander(get_frex_report(frex, frex_meterRel), caption='Frequencies of interest.')
+```
+
+```{r}
+# apply the current selectino of meter-related/unrelated frequencies. 
+data <- prepare_frex(df_feat, frex, frex_meterRel)
+df_amp_mean <- data$mean_amp
+df_meter <- data$meter
+df_meterRel <-  filter(data$meter, isMeterRel==TRUE)
+```
+
+<br><br>
+
+<br><br>
+
+## Overall response magnitude
+
+```{r, fig.width=4, fig.height=2}
+plot_amp_mean(df_amp_mean)
+```
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_amp_mean, dv=amp_eeg, wid=subject, within=.(rhythm,tone)))
+pander(res, justify='left',
+       caption='ANOVA on mean amplitude across all frequencies of interest (i.e. overall response magnitude).')
+```
+
+
+<br><br>
+
+## Meter zscore 
+
+```{r}
+pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_coch) %>% mutate(z_coch=round(z_coch,2)), 
+       justify='left', caption='Mean meter-related zscore for the cochlear model.')
+```
+
+For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_coch[1],3)` for the high tone. 
+
+```{r, fig.width=4, fig.height=2}
+plot_z_meter(df_meterRel)
+```
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meterRel, dv=z_eeg, wid=subject, within=.(rhythm,tone)))
+pander(res, justify='left',
+       caption='ANOVA on mean zscore at meter-related frequencies.')
+```
+
+```{r}
+# test meter-rel zscore against 0
+res <- ddply(df_meterRel, .(rhythm,tone), tVs0)
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+       caption='T-test of mean z-score at meter-related frequencies against zero.')
+```
+
+```{r}
+# test meter-rel zscore against cochlear model 
+res <- ddply(df_meterRel, .(rhythm,tone), tVsCoch)
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+       caption='T-test of mean z-score at meter-related frequencies against cochlear model.')
+```
+
+
+<br><br>
+
+## Meter amp (normalized) 
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meter, dv=amp_eeg_norm, wid=subject, within=.(rhythm,tone,isMeterRel)))
+pander(res, 
+       justify='left',
+       caption='ANOVA on mean mean normalized amplitude (between 0-1) at meter-related vs. -unrelated frequencies.')
+```
+
+<br><br>
+
+## Meter amp (raw) 
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meter, dv=amp_eeg, wid=subject, within=.(rhythm,tone,isMeterRel)))
+pander(res, 
+       justify='left',
+       caption='ANOVA on mean raw amplitude at meter-related vs. -unrelated frequencies.')
+```
+
+
+
+<br><br><br>
+
+--- 
+
+# Control analysis (old orig selection)
+
+```{r}
+# Define new selection of frequencies. 
+frex <- round(1/2.4 * c(2:12), 3)
+frex_meterRel <- round(1/2.4 * c(3,6,12), 3)
+
+# print a table summarizing frequencies of interest
+pander(get_frex_report(frex, frex_meterRel), caption='Frequencies of interest.')
+```
+
+```{r}
+# apply the current selectino of meter-related/unrelated frequencies. 
+data <- prepare_frex(df_feat, frex, frex_meterRel)
+df_amp_mean <- data$mean_amp
+df_meter <- data$meter
+df_meterRel <-  filter(data$meter, isMeterRel==TRUE)
+```
+
+
+<br><br>
+
+## Overall response magnitude
+
+```{r, fig.width=4, fig.height=2}
+plot_amp_mean(df_amp_mean)
+```
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_amp_mean, dv=amp_eeg, wid=subject, within=.(rhythm,tone)))
+pander(res, justify='left',
+       caption='ANOVA on mean amplitude across all frequencies of interest (i.e. overall response magnitude).')
+```
+
+
+<br><br>
+
+## Meter zscore 
+
+```{r}
+pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_coch) %>% mutate(z_coch=round(z_coch,2)), 
+       justify='left', caption='Mean meter-related zscore for the cochlear model.')
+```
+
+For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_coch[1],3)` for the high tone. 
+
+```{r, fig.width=4, fig.height=2}
+plot_z_meter(df_meterRel)
+```
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meterRel, dv=z_eeg, wid=subject, within=.(rhythm,tone)))
+pander(res, justify='left',
+       caption='ANOVA on mean zscore at meter-related frequencies.')
+```
+
+```{r}
+# test meter-rel zscore against 0
+res <- ddply(df_meterRel, .(rhythm,tone), tVs0)
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+       caption='T-test of mean z-score at meter-related frequencies against zero.')
+```
+
+```{r}
+# test meter-rel zscore against cochlear model 
+res <- ddply(df_meterRel, .(rhythm,tone), tVsCoch)
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+       caption='T-test of mean z-score at meter-related frequencies against cochlear model.')
+```
+
+
+<br><br>
+
+## Meter amp (normalized) 
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meter, dv=amp_eeg_norm, wid=subject, within=.(rhythm,tone,isMeterRel)))
+pander(res, 
+       justify='left',
+       caption='ANOVA on mean mean normalized amplitude (between 0-1) at meter-related vs. -unrelated frequencies.')
+```
+
+<br><br>
+
+## Meter amp (raw) 
+
+```{r}
+res <- format_anova_table(
+    ezANOVA(data=df_meter, dv=amp_eeg, wid=subject, within=.(rhythm,tone,isMeterRel)))
+pander(res, 
+       justify='left',
+       caption='ANOVA on mean raw amplitude at meter-related vs. -unrelated frequencies.')
+```
+
+
+
+
+
