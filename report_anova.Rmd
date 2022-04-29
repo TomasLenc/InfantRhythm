@@ -45,8 +45,9 @@ frex_meterRel <- round(1/2.4 * c(3,6,9,12), 3)
 adjust_method = 'bonferroni'
 
 # parameters for plotting 
-cols <- c(low='#b24de8', high='#db8025')
-cols_individual <- lighten(cols, amount=0.5)
+cols <- c(low='#8a3681', high='#107d34')
+cols_individual <- lighten(cols, amount=0.7)
+names(cols_individual) <- names(cols)
 fontsize <-14
 
 ```
@@ -96,7 +97,9 @@ knitr::include_graphics(file.path(sprintf('../figures/roi-%s/roi-%s_summaryGrand
 ## Overall response magnitude
 
 ```{r, fig.width=4, fig.height=2}
-plot_amp_mean(df_amp_mean)
+p <- plot_amp_mean(df_amp_mean)
+ggsave(file.path(reports_path, sprintf('roi-%s_ampMeanAll.pdf',roi)), p, width=4, height=2)
+p
 ```
 
 ```{r}
@@ -119,7 +122,9 @@ pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_coch) 
 For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_coch[1],3)` for the high tone. 
 
 ```{r, fig.width=4, fig.height=2}
-plot_z_meter(df_meterRel)
+p <- plot_z_meter(df_meterRel)
+ggsave(file.path(reports_path, sprintf('roi-%s_zMeterRel.pdf',roi)), p, width=4, height=2)
+p
 ```
 
 ```{r}
@@ -162,6 +167,17 @@ pander(res,
        caption='ANOVA on mean mean normalized amplitude (between 0-1) at meter-related vs. -unrelated frequencies.')
 ```
 
+```{r}
+# t-test between normalized amplitude at meter-rel vs. undrelated frequencies
+res <- ddply(df_meter, .(rhythm,tone), function(df) tMeterRelvsUnrel(df, feature='amp_eeg_norm'))
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+       caption='T-test between normalized amplitude at meter-rel vs. undrelated frequencies. ')
+```
+
+
 <br><br>
 
 ## Meter amp (raw) 
@@ -174,6 +190,15 @@ pander(res,
        caption='ANOVA on mean raw amplitude at meter-related vs. -unrelated frequencies.')
 ```
 
+```{r}
+# t-test between raw amplitude at meter-rel vs. undrelated frequencies
+res <- ddply(df_meter, .(rhythm,tone), function(df) tMeterRelvsUnrel(df, feature='amp_eeg'))
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+       caption='T-test between raw amplitude at meter-rel vs. undrelated frequencies. ')
+```
 
 
 <br><br><br>

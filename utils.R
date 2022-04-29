@@ -52,6 +52,16 @@ tVs0 <- function(df){
                signif = stars.pval(res$p.value))
 }
 
+tMeterRelvsUnrel <- function(df, feature='amp_eeg'){
+    val_meterRel <- df[df$isMeterRel==TRUE,feature]
+    val_meterUnrel <- df[df$isMeterRel==FALSE,feature]
+    res = t.test(val_meterRel, val_meterUnrel, paired=TRUE, alternative='greater')
+    data.frame(t = res$statistic, 
+               df = res$parameter, 
+               p = res$p.value, 
+               signif = stars.pval(res$p.value))
+}
+
 format_anova_table <- function(res){
     res <- res$ANOVA
     res$F <- round(res$F,2)
@@ -90,25 +100,28 @@ plot_z_meter <- function(df){
     df_summary <- summarySEwithin(df, withinvars=c('rhythm','tone'), idvar='subject', measurevar='z_eeg')
     df_summary$x <- as.numeric(df_summary$tone)
     
-    ggplot(df, aes(x, z_eeg, color=tone)) + 
+    p <- ggplot(df, aes(x, z_eeg, color=tone)) + 
         geom_segment(data=df[df$subject==df$subject[1],],
                      inherit.aes=FALSE,
-                     aes(x=x_coch_start, xend=x_coch_end, y=z_coch, yend=z_coch),
-                     color='grey50', size=3, alpha=0.5) +
+                     aes(x=x_coch_start, xend=x_coch_end, y=z_coch, yend=z_coch, color=tone),
+                     size=3, alpha=0.5) +
+        scale_color_manual(name='tone', values=cols) + 
+        new_scale_color() + new_scale_fill() + 
         geom_line(col='grey80', aes(group=paste(subject,rhythm))) +
-        geom_point(aes(group=paste(subject,rhythm)), size=2) +
+        geom_point(aes(color=tone), size=2) +
         scale_color_manual(name='tone', values=cols_individual) + 
         scale_x_continuous(breaks=c(1:length(levels(df$tone))), labels=levels(df$tone)) +  
         geom_hline(yintercept=0) +
         new_scale_color() + new_scale_fill() + 
-        geom_point(data=df_summary, aes(color=tone), size=4) + 
+        geom_point(data=df_summary, aes(color=tone), size=3) + 
         geom_errorbar(data=df_summary, aes(color=tone, ymin=z_eeg-ci, ymax=z_eeg+ci), size=1, width=0.2) + 
         scale_color_manual(name='tone', values=cols) + 
         facet_wrap(~rhythm) + 
         theme_cowplot() + 
         theme(
             axis.line.x = element_blank(), 
-            axis.text = element_text(size=fontsize), 
+            axis.text.x = element_blank(), 
+            axis.text.y = element_text(size=fontsize), 
             axis.title = element_text(size=fontsize), 
             axis.ticks = element_blank(), 
             axis.title.x = element_blank(),
@@ -117,6 +130,7 @@ plot_z_meter <- function(df){
             strip.background = element_blank(), 
             strip.text = element_text(size=fontsize, face='bold')
         )
+    return(p)
 }
 
 plot_amp_mean <- function(df){
@@ -126,13 +140,13 @@ plot_amp_mean <- function(df){
     df_summary <- summarySEwithin(df, withinvars=c('rhythm','tone'), idvar='subject', measurevar='amp_eeg')
     df_summary$x <- as.numeric(df_summary$tone)
     
-    ggplot(df, aes(x, amp_eeg, color=tone)) + 
+    p <- ggplot(df, aes(x, amp_eeg, color=tone)) + 
         geom_line(col='grey80', aes(group=paste(subject,rhythm))) +
         geom_point(aes(group=paste(subject,rhythm)), size=2) +
         scale_color_manual(name='tone', values=cols_individual) + 
         scale_x_continuous(breaks=c(1:length(levels(df$tone))), labels=levels(df$tone), limits=c(1-0.3, 2+0.3)) +  
         new_scale_color() + new_scale_fill() + 
-        geom_point(data=df_summary, aes(color=tone), size=4) + 
+        geom_point(data=df_summary, aes(color=tone), size=3) + 
         geom_errorbar(data=df_summary, aes(color=tone, ymin=amp_eeg-ci, ymax=amp_eeg+ci), size=1, width=0.2) + 
         scale_color_manual(name='tone', values=cols) + 
         facet_wrap(~rhythm) + 
@@ -147,6 +161,7 @@ plot_amp_mean <- function(df){
             strip.background = element_blank(), 
             strip.text = element_text(size=fontsize, face='bold')
         )
+    return(p) 
 }
 
 
