@@ -16,7 +16,8 @@ end
     
 fprintf('sub-%03d\n',subject); 
 
-% this will be used to find best channels across all conditions 
+% allocate overall response magnitude - this will be used to find best
+% channels across all conditions 
 amps_sum = nan(par.n_chan,2,2); 
 
 %% 
