@@ -15,7 +15,7 @@ else
     rhythm_code = 'syncopated'; 
 end
 fname = sprintf('%s_%s',tone_code,rhythm_code);
-idx = find(strcmpi(fname,coch.rowNames)); 
+idx = find(strcmpi(fname,coch.cond_names)); 
 
-mX = coch.res_all(idx,:); 
+mX = coch.mX(idx,:); 
 xstep = coch.freq(2)-coch.freq(1); 

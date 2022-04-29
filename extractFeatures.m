@@ -51,9 +51,9 @@ for iSub=1:length(par.subjects)
                 rhythm_code = 'syncopated'; 
             end
             fname = sprintf('%s_%s',tone_code,rhythm_code);
-            idx = find(strcmpi(fname,coch.rowNames)); 
+            idx = find(strcmpi(fname,coch.cond_names)); 
 
-            [~,~,z_coch,~,~,amps_coch] = getZ(coch.res_all(idx,:), frex_to_extract, ...
+            [~,~,z_coch,~,~,amps_coch] = getZ(coch.mX(idx,:), frex_to_extract, ...
                 idx_meterRel, idx_meterUnrel, 'xstep', coch.freq(2)); 
 
             %% write to csv

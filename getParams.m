@@ -4,12 +4,17 @@ function params=getParams()
 hostname = deblank(hostname); 
 
 if strcmp(hostname, 'tux')
-    deriv_path = '/datadisk/Dropbox/projects/XPInfant/derivatives'; 
-    stim_path = '/datadisk/Dropbox/projects/XPInfant/stimuli'; 
-    figures_path = '/datadisk/Dropbox/projects/XPInfant/figures'; 
-    preproc_path = '/datadisk/Dropbox/projects/XPInfant/derivatives/preprocessed_AB'; 
-    features_path = '/datadisk/Dropbox/projects/XPInfant/derivatives/features'; 
+    experiment_path = '/datadisk/Dropbox/projects/XPInfant'; 
+    letswave_path = '/datadisk/Dropbox/libraries/matlab/_neuro/letswave6-master';
+    fieldtrip_path = '/home/tomo/Documents/MATLAB/fieldtrip';
 end
+
+source_path = fullfile(experiment_path,'source'); 
+deriv_path = fullfile(experiment_path,'derivatives'); 
+stim_path = fullfile(experiment_path,'stimuli'); 
+figures_path = fullfile(experiment_path,'figures'); 
+preproc_path = fullfile(experiment_path,'derivatives/preprocessed_AB'); 
+features_path = fullfile(experiment_path,'derivatives/features'); 
 
 %%
 
@@ -86,8 +91,8 @@ col_meterRel = [222 45 38]/255;
 col_meterUnrel = [49, 130, 189]/255; 
 col_neutral = repmat(0.5,1,3); 
 
-col_time_eeg = [64,0,166; 
-                201, 96, 26]/255; 
+col_time_eeg = [138, 54, 129; 
+                16, 125, 52]/255; 
 col_z_eeg = [brighten(col_time_eeg(1,:), 0.6), 
              brighten(col_time_eeg(2,:), 0.6)]; 
 

@@ -24,9 +24,9 @@ assert(length(row_idx)==1)
 
 
 if any(strcmpi(varargin,'cycle'))
-    [t, res] = getCycleErp(coch.slaney(row_idx,:), coch.fs, 2.4); 
+    [t, res] = getCycleErp(coch.hc(row_idx,:), coch.fs, 2.4); 
 else
-    res = coch.slaney(row_idx,:);
+    res = coch.hc(row_idx,:);
     t = [0:length(res)-1]/coch.fs; 
 end
 
