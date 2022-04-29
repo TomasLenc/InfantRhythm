@@ -101,7 +101,7 @@ end
 % get limits for plotting
 ampTopoLims = [0,0]; 
 erpLim = 0; 
-fftLims = [0,0]; 
+fftLims = {[0,0], [0,0]}; 
 
 for iRhythm=1:2
     for iTone=1:2
@@ -116,7 +116,7 @@ for iRhythm=1:2
             par.idx_meterRel, par.idx_meterUnrel, 'xstep', header_fft.xstep); 
         amps_mean = mean(amps,1); 
         amps_sem = std(amps,[],1)/sqrt(size(amps,1)); 
-        fftLims(2) = max(fftLims(2), max(abs(amps_mean+amps_sem))); 
+        fftLims{iRhythm}(2) = max(fftLims{iRhythm}(2), max(abs(amps_mean+amps_sem))); 
         
         amps_topo_meterRel_grand = mean(cat(1,amps_topo_all{:,iRhythm,iTone,1}),1); 
         amps_topo_meterUnrel_grand = mean(cat(1,amps_topo_all{:,iRhythm,iTone,2}),1); 
@@ -126,11 +126,11 @@ for iRhythm=1:2
         ampTopoLims(2) = ceil(ampTopoLims(2)*par.prec)/par.prec; 
         
     end
+    fftLims{iRhythm}(1) = floor(fftLims{iRhythm}(1)*par.prec)/par.prec; 
+    fftLims{iRhythm}(2) = ceil(fftLims{iRhythm}(2)*par.prec)/par.prec; 
 end
 
 erpLim = ceil(erpLim*par.prec)/par.prec; 
-fftLims(1) = floor(fftLims(1)*par.prec)/par.prec; 
-fftLims(2) = ceil(fftLims(2)*par.prec)/par.prec; 
 zLims = [-0.6, 1.4]; 
 
             
@@ -150,49 +150,32 @@ end
 % open figure and pack subplots
 f = figure('color','white',...
            'name',sprintf('roi-%s',roi),...
-           'position', [312 296 711 536] ); 
+           'position',[302 585 703 223]); 
 pnl = panel(f);
 
 % rhythm
 pnl.pack('v',2); 
 
-% coch-time, mX, zscore
-pnl(1).pack('h',[0.3, 0.4, 0.2]); 
-pnl(2).pack('h',[0.3, 0.4, 0.2]); 
+% low high 
+pnl(1).pack('h',2); 
+pnl(2).pack('h',2); 
 
 for iRhythm=1:2
-    % time, mX
-    for iPlotType=1:2
-        % EEG low vs. EEG high 
-        pnl(iRhythm,iPlotType).pack('v',2); 
-    end
-end
-
-for iRhythm=1:2
-    % EEG low vs. EEG high     
     for iTone=1:2
-        pnl(iRhythm,1,iTone).pack({[0,0,1,1]}); 
-        pnl(iRhythm,1,iTone).pack({[0,0.3,1,0.4]}); 
+        % coch, EEG
+        pnl(iRhythm,iTone).pack('h',2); 
     end
 end
 
 for iRhythm=1:2
-    % EEG low vs. EEG high     
     for iTone=1:2
-        pnl(iRhythm,2,iTone).pack({[0,0,1,1]}); 
-        % inset for ERP
-        pnl(iRhythm,2,iTone).pack({[0.1, 0.9, 0.4, 0.3]}); 
-        % inset for ampAround
-        pnl(iRhythm,2,iTone).pack({[1.1, 0, 0.2, 0.3]}); 
-        % inset for topo
-        pnl(iRhythm,2,iTone).pack({[1.0, 0.6, 0.2, 0.6]}); 
-        pnl(iRhythm,2,iTone).pack({[1.2, 0.6, 0.2, 0.6]}); 
+        for iType=1:2
+            pnl(iRhythm,iTone,iType).pack({[0,0,1,1]}); 
+            % inset for ERP
+            pnl(iRhythm,iTone,iType).pack({[0.4, 1.05, 0.6, 0.3]}); 
+        end
     end
 end
-
-% zscore 
-pnl(1,3).pack({[0.6, -0.1, 0.7, 0.25]}); 
-pnl(2,3).pack({[0.6, 0.7, 0.7, 0.25]}); 
 
 % pnl.select('all'); 
 
@@ -212,19 +195,34 @@ for iRhythm=1:2
             s = s / max(s); 
             [coch, fs_coch, t_coch] = loadCochERP(rhythm,tone,'cycle');
 
-            ax = pnl(iRhythm,1,iTone,2).select(); 
+            ax = pnl(iRhythm,iTone,1,2).select(); 
             hold(ax,'on'); 
-            plot(ax, t_s, s, 'col',[.6,.6,.6]); 
-            plot(ax, t_coch, coch, 'col',[0,0,0], 'linew',2); 
+            plot(ax, t_s, s, 'col',[.8,.8,.8]); 
+            plot(ax, t_coch, coch, 'col',[0,0,0], 'linew',1); 
             ax.Visible = 'off'; 
-
+            
+            ax = pnl(iRhythm,iTone,1,1).select(); 
+            [coch, fs_coch, t_coch] = loadCochERP(rhythm,tone);
+            mX_coch = abs(fft(coch)); 
+            mX_coch(1) = 0; 
+            mX_coch = mX_coch(1:round(par.maxfreqlim/fs_coch*length(coch))+1); 
+            mX_coch = SNR(mX_coch, par.snr_bins_coch(1), par.snr_bins_coch(2)); 
+            data_coch = []; 
+            data_coch(1,1,1,1,1,:) = mX_coch; 
+            header_coch = []; 
+            header_coch.datasize = size(data_coch); 
+            header_coch.xstep = fs_coch/length(coch); 
+            plotLwFFT(ax, header_coch, data_coch); 
+            ax.YLim = [0,Inf]; 
+            ax.YTick = []; 
+            
             % ERP 
             % ---
             erp = cat(1,erp_all{:,iRhythm,iTone}); 
             erp_mean = mean(erp,1); 
             erp_sem = std(erp,[],1)/sqrt(size(erp,1)); 
 
-            ax = pnl(iRhythm,2,iTone,2).select(); 
+            ax = pnl(iRhythm,iTone,2,2).select(); 
             plot(ax, t_s, s/max(s)*erpLim, 'col',[.8,.8,.8]); 
             hold(ax,'on')
             fill(ax, [t_erp,flip(t_erp)], ...
@@ -243,79 +241,32 @@ for iRhythm=1:2
             % spectrum
             % --------
 
-            ax = pnl(iRhythm,2,iTone,1).select(); 
+            ax = pnl(iRhythm,iTone,2,1).select(); 
 
             mX = cat(1,data_fft_all{:,iRhythm,iTone}); 
             mX_mean = mean(mX, 1); 
             mX_sem = std(mX,[],1)/sqrt(size(mX,1)); 
 
-            plotLwFFT(ax, header_fft, mX_mean, 'ci',mX_sem); 
+%             plotLwFFT(ax, header_fft, mX_mean, 'ci',mX_sem); 
+            plotLwFFT(ax, header_fft, mX_mean); 
 
-            ax.YLim = [0,fftLims(2)]; 
-            ax.YTick = [0,fftLims(2)]; 
-
-
-            % amp-around
-            % ----------
-            mXnoSNR = squeeze(cat(1,data_fft_noSNR_all{:,iRhythm,iTone})); 
-
-            [amp_around, amp_around_z] = getAmpAround( ...
-                header_fft_noSNR, mXnoSNR, par.frex, par.snr_bins_eeg, par.amp_around_alpha); 
-
-            ax = pnl(iRhythm,2,iTone,3).select(); 
-            data2plot = squeeze(mean(amp_around,1)); 
-            data2plot = data2plot-min(data2plot); 
-            z2plot = squeeze(mean(amp_around_z,1)); 
-
-            plotAmpAround(ax, data2plot, z2plot, par.snr_bins_eeg, par.prec); 
-
+            ax.YLim = [0,fftLims{iRhythm}(2)]; 
+            ax.YTick = [0,fftLims{iRhythm}(2)]; 
 
     end
-
-    % zscores
-    % -------
-    z_meterRel = squeeze(zMeterRel_all(:,iRhythm,:)); 
-    
-    ax = pnl(iRhythm,3,1).select(); 
-    hold on
-   
-    [mX_coch, xstep_coch] = loadCoch(rhythm,tone); 
-    
-    [z_meterRel_coch] = getZ(mX_coch, par.frex, ...
-        par.idx_meterRel, par.idx_meterUnrel, 'xstep', xstep_coch); 
-
-    % test each task against cochlear model 
-    plotCondDiffPaired(ax, z_meterRel, ...
-        par.col_neutral, par.col_z_eeg, 'mu', z_meterRel_coch);
-    
-    ax.YLim = zLims; 
-
     
 end
+    
 
-
-%% margins and labels (main figure) 
+% margins and labels
+% ------------------
 
 % [left bottom right top]
 pnl.de.margin = [10,4,0,10]; 
 
-pnl(1,3).marginleft = 25; 
-pnl(2,3).marginleft = 25; 
+pnl.margin = [5,5,5,10];  
 
-% yticklabels are overlapping (2.4 0), fix it
-pnl(2).margintop = 15; 
-
-pnl.margin = [10,5,6,10];  
-
-% add legend 
-pnl(iRhythm,3,1).select(); 
-
-l = legend(h, {par.tones{1}',par.tones{2}}); 
-l.Box = 'off'; 
-l.FontSize = par.fontsize; 
-l.Position = [0.8486 0.1999 0.1058 0.0822]; 
-
-pnl.fontsize = par.fontsize; 
+pnl.fontsize = 10; 
 
 
 %% save (main figure)
@@ -330,7 +281,7 @@ end
 fname = sprintf('roi-%s_summaryGrand',roi); 
 
 saveas(f, fullfile(fpath,[fname,'.svg'])); 
-print(f, '-dpng', '-painters', '-r300', fullfile(fpath,fname)); 
+print(f, '-dpng', '-painters', '-r600', fullfile(fpath,fname)); 
 
 close(f); 
 
@@ -339,31 +290,8 @@ close(f);
      
 %% figure topo 
 
-
 % Topoplots never render well in a composite figure, and so it's better to just
 % plot the separately, save as raster and then paste manually in inkscape. 
-
-% open figure and pack subplots
-f_topo = figure('color','white',...
-           'name',sprintf('roi-%s',roi),...
-           'position', [810 565 708 315] ); 
-pnl_topo = panel(f_topo);
-
-% rhythm
-pnl_topo.pack('v',2); 
-
-% tone
-pnl_topo(1).pack('h',2); 
-pnl_topo(2).pack('h',2); 
-
-for iRhythm=1:2
-    for iTone=1:2
-        pnl_topo(iRhythm,iTone).pack('h',2); 
-    end
-end
-
-% pnl_topo.select('all')
-
 
 for iRhythm=1:2
 
@@ -383,41 +311,41 @@ for iRhythm=1:2
         [cfg,d] = prepareTopoCfg(amps_topo_meterRel_mean, ...
                                 {header_fft_allChan.chanlocs.labels}, ...
                                 ampTopoLims, lay); 
+        f_topo = figure('color','none',...
+                   'name',sprintf('roi-%s',roi),...
+                   'position', [1357 21 524 241] ); 
+        pnl_topo = panel(f_topo);                            
         ax = axes(f_topo); 
         ft_topoplotER(cfg,d);
         colormap(parula) 
-        pnl_topo(iRhythm,iTone,1).select(ax); 
+        pnl_topo().select(ax); 
+        pnl_topo.de.margin = 0; 
+        pnl_topo.margin = [1,1,1,1]; 
+        fname = sprintf('roi-%s_rhythm-%s_tone-%s_meter-rel_summaryGrand-topo',roi,rhythm,tone); 
+        export_fig(f_topo, fullfile(fpath,fname), '-dpng', '-transparent', '-r300');
+        close(f_topo); 
         
         [cfg,d] = prepareTopoCfg(amps_topo_meterUnrel_mean, ...
                                 {header_fft_allChan.chanlocs.labels}, ...
                                 ampTopoLims, lay); 
+        f_topo = figure('color','none',...
+                   'name',sprintf('roi-%s',roi),...
+                   'position',[1357 21 524 241] ); 
+        pnl_topo = panel(f_topo);                            
         ax = axes(f_topo); 
         ft_topoplotER(cfg,d);
         colormap(parula) 
-        pnl_topo(iRhythm,iTone,2).select(ax); 
-
+        pnl_topo().select(ax); 
+        pnl_topo.de.margin = 0; 
+        pnl_topo.margin = [1,1,1,1]; 
+        fname = sprintf('roi-%s_rhythm-%s_tone-%s_meter-unrel_summaryGrand-topo',roi,rhythm,tone); 
+        export_fig(f_topo, fullfile(fpath,fname), '-dpng', '-transparent', '-r300');
+        close(f_topo); 
+        
         importFieldtrip(-1); 
         importLetswave; 
-
     end
 end
-
-
-pnl_topo.de.margin = 0; 
-pnl_topo.margin = [0,0,0,10]; 
-
-pnl_topo(1).title(par.rhythms(1)); 
-pnl_topo(2).title(par.rhythms(2)); 
-pnl_topo(1,1).title(par.tones(1)); 
-pnl_topo(1,2).title(par.tones(2)); 
-pnl_topo(1,1,1).title('meter-rel'); 
-pnl_topo(1,1,2).title('meter-unrel'); 
-
-
-fname = sprintf('roi-%s_summaryGrand-topo',roi); 
-print(f_topo, '-dpng', '-painters', '-r600', fullfile(fpath,fname)); 
-close(f_topo); 
-
 
 f_cbar = figure('color','white', 'pos',[704 542 536 112]); 
 axes();

@@ -18,12 +18,6 @@ for iRhythm=1:length(rhythms)
         else
             fprintf('\nsub-%03d %s %s\n', subject, tones{iTone}, rhythms{iRhythm}); 
         end
-        % check if Kingswood 
-        if strfind(d.name, 'K.mat')
-            isKingswood = true; 
-        else
-            isKingswood = false; 
-        end
 
         % load data
         [header, data] = CLW_load(fullfile(d.folder, d.name));     
