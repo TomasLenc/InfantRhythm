@@ -1,20 +1,35 @@
 function params=getParams()
 
-[~, hostname] = system('hostname');
-hostname = deblank(hostname); 
+% ========== manually update these paths before running the analysis ==========
+% path the the experiment root folder 
+experiment_path = '/datadisk/Dropbox/projects/XPInfant'; 
 
-if strcmp(hostname, 'tux')
-    experiment_path = '/datadisk/Dropbox/projects/XPInfant'; 
-    letswave_path = '/datadisk/Dropbox/libraries/matlab/_neuro/letswave6-master';
-    fieldtrip_path = '/home/tomo/Documents/MATLAB/fieldtrip';
-end
+% path the letswave6
+letswave_path = '/datadisk/Dropbox/libraries/matlab/_neuro/letswave6-master';
+
+% path to fieldtrip
+fieldtrip_path = '/home/tomo/Documents/MATLAB/fieldtrip';
+% ============================================================================
 
 source_path = fullfile(experiment_path,'source'); 
-deriv_path = fullfile(experiment_path,'derivatives'); 
 stim_path = fullfile(experiment_path,'stimuli'); 
+
+deriv_path = fullfile(experiment_path,'derivatives'); 
+if ~isdir(deriv_path)
+    mkdir(deriv_path)
+end
 figures_path = fullfile(experiment_path,'figures'); 
+if ~isdir(figures_path)
+    mkdir(figures_path)
+end
 preproc_path = fullfile(experiment_path,'derivatives/preprocessed_AB'); 
+if ~isdir(preproc_path)
+    mkdir(preproc_path)
+end
 features_path = fullfile(experiment_path,'derivatives/features'); 
+if ~isdir(features_path)
+    mkdir(features_path)
+end
 
 %%
 
@@ -108,11 +123,6 @@ prec = 100;
 
 
 %% return structure 
-
-% I'm lazy so here I take the workspace of this function and shove all the
-% variables into a structure.  
-
-% A little bonus is that the variables are alphabetically ordered :) 
 
 params = []; 
 
