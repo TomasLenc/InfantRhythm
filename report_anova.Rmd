@@ -60,7 +60,7 @@ fontsize <-14
 
 ```{r}
 # load data
-path_features <- sprintf('/datadisk/Dropbox/projects/XPInfant/derivatives/features/features_roi-%s.csv', roi)
+path_features <- file.path(experiment_path, sprintf('derivatives/features/features_roi-%s.csv', roi))
 df_feat <- read.csv(path_features)
 df_feat$subject <- factor(df_feat$subject)
 df_feat$rhythm <- factor(df_feat$rhythm, levels=c('unsync','sync'))
