@@ -911,14 +911,6 @@
         "lattice"
       ]
     },
-    "stringi": {
-      "Package": "stringi",
-      "Version": "1.6.2",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "9df5e6f9a7fa11b84adf0429961de66a",
-      "Requirements": []
-    },
     "stringr": {
       "Package": "stringr",
       "Version": "1.4.0",
