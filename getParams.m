@@ -106,8 +106,8 @@ col_meterRel = [222 45 38]/255;
 col_meterUnrel = [49, 130, 189]/255; 
 col_neutral = repmat(0.5,1,3); 
 
-col_time_eeg = [138, 54, 129; 
-                16, 125, 52]/255; 
+col_time_eeg = [64, 0, 166; 
+                224, 96, 15]/255; 
 col_z_eeg = [brighten(col_time_eeg(1,:), 0.6), 
              brighten(col_time_eeg(2,:), 0.6)]; 
 

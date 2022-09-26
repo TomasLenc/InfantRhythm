@@ -1,12 +1,12 @@
 function [z_meterRel,z_meterUnrel,z,amps_meterRel,amps_meterUnrel,amps,frex_idx] = ...
-    getZ(mX,frex,idxMeterRel,idxMeterUnrel,varargin)
+    getZ(mX, frex, idxMeterRel, idxMeterUnrel, varargin)
 
 % fix 1D data to be a row vector (remember: time must be the last dimension!)
 if size(mX,1)>1 & size(mX,2)==1
     mX = mX'; 
 end
 
-
+% get xstep
 if any(strcmpi(varargin,'fs')) & any(strcmpi(varargin,'N'))
     fs = varargin{find(strcmpi(varargin,'fs'))+1}; 
     N = varargin{find(strcmpi(varargin,'N'))+1}; 
@@ -17,9 +17,10 @@ else
     error('you must to either specify both fs and N, or xstep in varargin!'); 
 end
     
+% get indices for frequencies of interest
 frex_idx = round(frex/xstep)+1; 
 
-v = repmat({':'},ndims(mX),1); 
+v = repmat({':'}, ndims(mX), 1); 
 v{end} = frex_idx; 
 amps = mX(v{:}); 
 

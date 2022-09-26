@@ -41,12 +41,21 @@ for iRhythm=1:2
         [header_lp,data_lp] = RLW_average_epochs(header_lp, data_lp); 
 
         % FFT
-        [header_fft_noSNR, data_fft_noSNR] = RLW_FFT(header_ep, data_ep);             
+        [header_fft_noSNR, data_fft_noSNR] = RLW_FFT(header_ep, data_ep);     
 
         % SNR (2-5)
         [header_fft, data_fft] = RLW_SNR(header_fft_noSNR,data_fft_noSNR, ...
             'xstart', par.snr_bins_eeg(1), 'xend',par.snr_bins_eeg(2)); 
-
+        
+        % convert spectrum to dB
+        header_fft_db = header_fft_noSNR;
+        data_fft_db = 20 * log10(data_fft_noSNR); 
+        
+        % perform SNR noise subtraction 
+        [header_fft_db, data_fft_db] = RLW_SNR(header_fft_db, data_fft_db, ...
+            'xstart', par.snr_bins_eeg(1), 'xend',par.snr_bins_eeg(2)); 
+        
+        
         %% select channels 
 
         if strcmp(roi,'front')
@@ -54,16 +63,6 @@ for iRhythm=1:2
             % pool channels (spectra averaged across 28 frontocentral channels (14 in each
             % hemisphere))
             chan_sel = par.front_chan'; 
-
-            [header_time_roi,data_time_roi] = RLW_pool_channels(header_lp, data_lp, chan_sel,...
-                'mixed_channel_label','best_chan','keep_original_channels',false); 
-
-            [header_fft_chan,data_fft_roi] = RLW_pool_channels(header_fft, data_fft, chan_sel,...
-                'mixed_channel_label','best_chan','keep_original_channels',false); 
-
-            [header_fft_noSNR_roi,data_fft_noSNR_roi] = RLW_pool_channels(header_fft_noSNR, data_fft_noSNR, chan_sel,...
-                'mixed_channel_label','best_chan','keep_original_channels',false); 
-
 
         elseif strcmp(roi,'best')
 
@@ -74,26 +73,34 @@ for iRhythm=1:2
             chan_sel = readtable(fullfile(fpath,fname)); 
             chan_sel = chan_sel.label; 
 
-            [header_time_roi,data_time_roi] = RLW_pool_channels(header_lp, data_lp, chan_sel,...
-                'mixed_channel_label','best_chan','keep_original_channels',false); 
-
-            [header_fft_chan,data_fft_roi] = RLW_pool_channels(header_fft, data_fft, chan_sel,...
-                'mixed_channel_label','best_chan','keep_original_channels',false); 
-
-            [header_fft_noSNR_roi,data_fft_noSNR_roi] = RLW_pool_channels(header_fft_noSNR, data_fft_noSNR, chan_sel,...
-                'mixed_channel_label','best_chan','keep_original_channels',false); 
-
-
-        elseif strcmp(roi,'cca')
-
-            % spatial filter that maximizes correlation across trials (use 1-cycle long
-            % chunks in the time-domain) 
-            chan_sel = []; 
-
-
-
         end
+        
+        % average roi channels in the time-domain (for ERPs)
+        [header_time_roi, data_time_roi] = RLW_pool_channels(...
+            header_lp, data_lp, chan_sel,...
+            'mixed_channel_label', 'avg', 'keep_original_channels', false...
+            ); 
 
+        % average spectra (magnitudes) across roi channels 
+        [header_fft_roi, data_fft_roi] = RLW_pool_channels(...
+            header_fft, data_fft, chan_sel,...
+            'mixed_channel_label', 'avg', 'keep_original_channels', false...
+            ); 
+
+        % average spectra (magnitudes) across roi channels (FFT without noise
+        % subtraction)
+        [header_fft_noSNR_roi, data_fft_noSNR_roi] = RLW_pool_channels(...
+            header_fft_noSNR, data_fft_noSNR, chan_sel,...
+            'mixed_channel_label','avg','keep_original_channels',false...
+            ); 
+
+        % average spectra (magnitudes) across roi channels (dB-transformed)
+        [header_fft_db_roi, data_fft_db_roi] = RLW_pool_channels(...
+            header_fft_db, data_fft_db, chan_sel,...
+            'mixed_channel_label', 'avg', 'keep_original_channels', false...
+            ); 
+        
+        
         %% save 
         
         fpath = fullfile(par.deriv_path, ...
@@ -122,9 +129,15 @@ for iRhythm=1:2
         % FFT 
         fname = sprintf('sub-%03d_rhythm-%s_tone-%s_snr-%d-%d_FFT',...
             subject,rhythm,tone,par.snr_bins_eeg(1), par.snr_bins_eeg(2)); 
-        header_fft_chan.name = fname; 
-        CLW_save(fpath, header_fft_chan, data_fft_roi); 
+        header_fft_roi.name = fname; 
+        CLW_save(fpath, header_fft_roi, data_fft_roi); 
 
+        % FFT log-transformed
+        fname = sprintf('sub-%03d_rhythm-%s_tone-%s_snr-%d-%d_FFT_dB',...
+            subject,rhythm,tone,par.snr_bins_eeg(1), par.snr_bins_eeg(2)); 
+        header_fft_db_roi.name = fname; 
+        CLW_save(fpath, header_fft_db_roi, data_fft_db_roi); 
+        
     end
 end
 

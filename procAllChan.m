@@ -35,15 +35,20 @@ for iRhythm=1:2
         [header,data] = CLW_load(fullfile(d.folder,d.name)); 
 
         % rereference to mastoid (E57, E100)
-        [header,data] = RLW_rereference(header,data,...
-            'apply_list',{header.chanlocs.labels},'reference_list',par.ref_chans); 
+        [header,data] = RLW_rereference(...
+            header,data,...
+            'apply_list',{header.chanlocs.labels}, ...
+            'reference_list',par.ref_chans...
+            ); 
 
         % cut trials into chunks before averaging ? 
         if par.preproc_chunk_do
-            [header,data,msg] = RLW_segmentation_chunk(header,data,...
+            [header,data,msg] = RLW_segmentation_chunk(...
+                header,data,...
                 'chunk_onset',par.preproc_chunk_onset, ...
                 'chunk_duration',par.preproc_chunk_dur, ...
-                'chunk_interval',par.preproc_chunk_dur); 
+                'chunk_interval',par.preproc_chunk_dur...
+                ); 
             disp(msg); 
         end
         
@@ -60,6 +65,14 @@ for iRhythm=1:2
         [header_fft, data_fft] = RLW_SNR(header_fft_noSNR,data_fft_noSNR, ...
             'xstart', par.snr_bins_eeg(1), 'xend',par.snr_bins_eeg(2)); 
 
+        % convert spectrum to dB
+        header_fft_db = header_fft_noSNR;
+        data_fft_db = 20 * log10(data_fft_noSNR); 
+        
+        % perform SNR noise subtraction 
+        [header_fft_db, data_fft_db] = RLW_SNR(header_fft_db, data_fft_db, ...
+            'xstart', par.snr_bins_eeg(1), 'xend',par.snr_bins_eeg(2)); 
+        
         % infants showing large residual artifacts (amplitudes larger than 10 microV in 
         % more than 10 channels within one of the conditions) within the frequency range 
         % of interest (0.5 to 5 Hz) were then excluded from further analysis (5 infants over 20)
@@ -74,8 +87,11 @@ for iRhythm=1:2
         end
 
         % get amplitudes for best-channel ROI selection 
-        [~,~,~,amps,~] = getZ(squeeze(data_fft), par.frex, ...
-            par.idx_meterRel, par.idx_meterUnrel, 'xstep', header_fft.xstep); 
+        [~,~,~,amps,~] = getZ(...
+            squeeze(data_fft), par.frex, ...
+            par.idx_meterRel, par.idx_meterUnrel, ...
+            'xstep', header_fft.xstep...
+            ); 
 
         amps_sum(:,iRhythm,iTone) = sum(amps,2); 
         
@@ -90,16 +106,21 @@ for iRhythm=1:2
 
         % without SNR 
         fname = sprintf('sub-%03d_rhythm-%s_tone-%s_snr-0-0_FFT',...
-            subject,rhythm,tone); 
+            subject, rhythm, tone); 
         header_fft_noSNR.name = fname; 
         CLW_save(fpath, header_fft_noSNR, data_fft); 
 
         % with SNR 
         fname = sprintf('sub-%03d_rhythm-%s_tone-%s_snr-%d-%d_FFT',...
-            subject,rhythm,tone,par.snr_bins_eeg(1), par.snr_bins_eeg(2)); 
+            subject, rhythm, tone, par.snr_bins_eeg(1), par.snr_bins_eeg(2)); 
         header_fft.name = fname; 
         CLW_save(fpath, header_fft, data_fft); 
 
+        % log-transformed (with SNR)
+        fname = sprintf('sub-%03d_rhythm-%s_tone-%s_snr-%d-%d_FFT_dB',...
+            subject, rhythm, tone, par.snr_bins_eeg(1), par.snr_bins_eeg(2)); 
+        header_fft_db.name = fname; 
+        CLW_save(fpath, header_fft_db, data_fft_db); 
     end
 end
 

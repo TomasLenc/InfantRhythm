@@ -1,4 +1,4 @@
-function plotSummaryGrand(roi)
+function plotSummaryGrand(roi, varargin)
 
 % prepare layout for fieldtrip topoplots 
 importLetswave(-1); 
@@ -16,6 +16,15 @@ par = getParams();
 bad_subjects_table = readtable(fullfile(par.deriv_path,'bad_subjects.csv')); 
 subjects2run = setdiff(par.subjects, bad_subjects_table.subject); 
 
+fft_type_eeg = 'amp';
+fft_type_coch = 'amp';
+if any(strcmpi(varargin, 'fft_type_eeg'))
+    fft_type_eeg = varargin{find(strcmpi(varargin, 'fft_type_eeg')) + 1}; 
+end
+if any(strcmpi(varargin, 'fft_type_coch'))
+    fft_type_coch = varargin{find(strcmpi(varargin, 'fft_type_coch')) + 1}; 
+end
+
 %% prepare data
 
 
@@ -24,9 +33,6 @@ erp_all = cell(length(subjects2run), length(par.rhythms), length(par.tones));
 
 % sub, rhyth, tone
 data_fft_all = cell(length(subjects2run), length(par.rhythms), length(par.tones)); 
-
-% sub, rhyth, tone
-data_fft_noSNR_all = cell(length(subjects2run), length(par.rhythms), length(par.tones)); 
 
 % sub, rhyth, tone, isMeterRel
 amps_topo_all = cell(length(subjects2run), length(par.rhythms), length(par.tones), 2); 
@@ -56,38 +62,54 @@ for iSub=1:length(subjects2run)
             [t_erp, erp, sem_erp] = getCycleErp(data_time, 1/header_time.xstep, 2.4); 
             erp_all{iSub,iRhythm,iTone} = erp; 
 
-            % FFT 
+            % load FFT averaged across roi channels
             fpath = fullfile(par.deriv_path, ...
                 sprintf('roi-%s/sub-%03d',roi,subject)); 
-            fname = sprintf('sub-%03d_rhythm-%s_tone-%s_snr-%d-%d_FFT',...
-                subject,rhythm,tone,par.snr_bins_eeg(1), par.snr_bins_eeg(2)); 
+            if strcmpi(fft_type_eeg, 'db')
+                suffix = '_dB'; 
+            else
+                suffix = '';
+            end
+            fname = sprintf(...
+                'sub-%03d_rhythm-%s_tone-%s_snr-%d-%d_FFT%s',...
+                subject, rhythm, tone, ...
+                par.snr_bins_eeg(1), par.snr_bins_eeg(2), ...
+                suffix...
+                ); 
             
-            [header_fft,data_fft] = CLW_load(fullfile(fpath,fname)); 
+            [header_fft, data_fft] = CLW_load(fullfile(fpath,fname)); 
 
             data_fft_all{iSub,iRhythm,iTone} = data_fft; 
 
-            [zMeterRel,~,~,~,~,amps] = getZ(squeeze(data_fft), par.frex, ...
-                par.idx_meterRel, par.idx_meterUnrel, 'xstep', header_fft.xstep); 
+            [zMeterRel,~,~,~,~,amps] = getZ(...
+                squeeze(data_fft), par.frex, ...
+                par.idx_meterRel, par.idx_meterUnrel, ...
+                'xstep', header_fft.xstep...
+                ); 
             zMeterRel_all(iSub,iRhythm,iTone) = zMeterRel; 
-            
-            % FFT no-SNR
-            fpath = fullfile(par.deriv_path, ...
-                sprintf('roi-%s/sub-%03d',roi,subject)); 
-            fname = sprintf('sub-%03d_rhythm-%s_tone-%s_snr-0-0_FFT',...
-                            subject,rhythm,tone); 
-            [header_fft_noSNR,data_fft_noSNR] = CLW_load(fullfile(fpath,fname)); 
-            data_fft_noSNR_all{iSub,iRhythm,iTone} = data_fft_noSNR; 
-            
-            % load FFT all channels (for topo) 
+                        
+            % load FFT for each channel (for topo) 
             fpath = fullfile(par.deriv_path, ...
                 sprintf('roi-all/sub-%03d',subject)); 
-            fname = sprintf('sub-%03d_rhythm-%s_tone-%s_snr-%d-%d_FFT',...
-                subject,rhythm,tone,par.snr_bins_eeg(1), par.snr_bins_eeg(2)); 
+            if strcmpi(fft_type_eeg, 'db')
+                suffix = '_dB'; 
+            else
+                suffix = '';
+            end
+            fname = sprintf(...
+                'sub-%03d_rhythm-%s_tone-%s_snr-%d-%d_FFT%s',...
+                subject, rhythm, tone, ...
+                par.snr_bins_eeg(1), par.snr_bins_eeg(2), ...
+                suffix...
+                ); 
             
-            [header_fft_allChan,data_fft_allChan] = CLW_load(fullfile(fpath,fname)); 
+            [header_fft_allChan, data_fft_allChan] = CLW_load(fullfile(fpath,fname)); 
 
-            [~,~,~,ampsMeterRel,ampsMeterUnrel,amps] = getZ(squeeze(data_fft_allChan), par.frex, ...
-                par.idx_meterRel, par.idx_meterUnrel, 'xstep', header_fft_allChan.xstep); 
+            [~,~,~, ampsMeterRel, ampsMeterUnrel, amps] = getZ(...
+                squeeze(data_fft_allChan), par.frex, ...
+                par.idx_meterRel, par.idx_meterUnrel, ...
+                'xstep', header_fft_allChan.xstep...
+                ); 
 
             amps_topo_all{iSub,iRhythm,iTone,1} = ampsMeterRel'; 
             amps_topo_all{iSub,iRhythm,iTone,2} = ampsMeterUnrel'; 
@@ -147,6 +169,7 @@ end
 
 %% 
     
+
 % open figure and pack subplots
 f = figure('color','white',...
            'name',sprintf('roi-%s',roi),...
@@ -191,9 +214,9 @@ for iRhythm=1:2
 
             % coch
             % ----
-            [s, fs_s, t_s] = loadStim(rhythm,tone,'cycle'); 
+            [s, ~, t_s] = loadStim(rhythm, tone, 'cycle'); 
             s = s / max(s); 
-            [coch, fs_coch, t_coch] = loadCochERP(rhythm,tone,'cycle');
+            [coch, ~, t_coch] = loadCochERP(rhythm, tone, 'cycle');
 
             ax = pnl(iRhythm,iTone,1,2).select(); 
             hold(ax,'on'); 
@@ -201,17 +224,12 @@ for iRhythm=1:2
             plot(ax, t_coch, coch, 'col',[0,0,0], 'linew',1); 
             ax.Visible = 'off'; 
             
+            [header_coch, data_coch] = loadCochFFT(...
+                rhythm, tone, fft_type_coch, ...
+                'maxfreqlim', par.maxfreqlim...
+                );
+             
             ax = pnl(iRhythm,iTone,1,1).select(); 
-            [coch, fs_coch, t_coch] = loadCochERP(rhythm,tone);
-            mX_coch = abs(fft(coch)); 
-            mX_coch(1) = 0; 
-            mX_coch = mX_coch(1:round(par.maxfreqlim/fs_coch*length(coch))+1); 
-            mX_coch = SNR(mX_coch, par.snr_bins_coch(1), par.snr_bins_coch(2)); 
-            data_coch = []; 
-            data_coch(1,1,1,1,1,:) = mX_coch; 
-            header_coch = []; 
-            header_coch.datasize = size(data_coch); 
-            header_coch.xstep = fs_coch/length(coch); 
             plotLwFFT(ax, header_coch, data_coch); 
             ax.YLim = [0,Inf]; 
             ax.YTick = []; 
@@ -278,7 +296,8 @@ if ~isfolder(fpath)
     mkdir(fpath); 
 end
 
-fname = sprintf('roi-%s_summaryGrand',roi); 
+fname = sprintf('roi-%s_summaryGrand_fftTypeEEG-%s_fftTypeCoch-%s', ...
+                roi, fft_type_eeg, fft_type_coch); 
 
 saveas(f, fullfile(fpath,[fname,'.svg'])); 
 print(f, '-dpng', '-painters', '-r600', fullfile(fpath,fname)); 
@@ -291,7 +310,10 @@ close(f);
 %% figure topo 
 
 % Topoplots never render well in a composite figure, and so it's better to just
-% plot the separately, save as raster and then paste manually in inkscape. 
+% plot the separately, save as raster and then paste manually in
+% inkscape...sorry
+
+if ~any(strcmpi(varargin, 'skip_topo'))
 
 for iRhythm=1:2
 
@@ -321,7 +343,10 @@ for iRhythm=1:2
         pnl_topo().select(ax); 
         pnl_topo.de.margin = 0; 
         pnl_topo.margin = [1,1,1,1]; 
-        fname = sprintf('roi-%s_rhythm-%s_tone-%s_meter-rel_summaryGrand-topo',roi,rhythm,tone); 
+        fname = sprintf(...
+            'roi-%s_rhythm-%s_tone-%s_fftTypeEEG-%s_meter-rel_summaryGrand-topo', ...
+            roi, rhythm, tone, fft_type_eeg...
+            ); 
         export_fig(f_topo, fullfile(fpath,fname), '-dpng', '-transparent', '-r300');
         close(f_topo); 
         
@@ -338,7 +363,10 @@ for iRhythm=1:2
         pnl_topo().select(ax); 
         pnl_topo.de.margin = 0; 
         pnl_topo.margin = [1,1,1,1]; 
-        fname = sprintf('roi-%s_rhythm-%s_tone-%s_meter-unrel_summaryGrand-topo',roi,rhythm,tone); 
+        fname = sprintf(...
+            'roi-%s_rhythm-%s_tone-%s_fftTypeEEG-%s_meter-unrel_summaryGrand-topo', ...
+            roi, rhythm, tone, fft_type_eeg...
+            ); 
         export_fig(f_topo, fullfile(fpath,fname), '-dpng', '-transparent', '-r300');
         close(f_topo); 
         
@@ -352,14 +380,14 @@ axes();
 cbar = colorbar();
 cbar.Ticks = [0,1]; 
 cbar.TickLabels = ampTopoLims; 
-cbar.Label.String = 'amplitude'; 
-fname = sprintf('roi-%s_summaryGrand-topo-cbar',roi); 
+cbar.Label.String = fft_type_eeg; 
+fname = sprintf('roi-%s_fftTypeEEG-%s_summaryGrand-topo-cbar', ...
+    roi, fft_type_eeg); 
 print(f_cbar, '-dpng', '-painters', '-r600', fullfile(fpath,fname)); 
 close(f_cbar); 
 
 
-
-
+end
 
 
 

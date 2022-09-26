@@ -1,4 +1,4 @@
-function [res, fs, t] = loadCochERP(rhythm,tone,varargin)
+function [res, fs, t] = loadCochERP(rhythm, tone, varargin)
 
 par = getParams(); 
 

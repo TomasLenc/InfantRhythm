@@ -44,6 +44,7 @@ for iTone=1:length(tones)
         hN = length(hc(1,:))/2+1;
         freq = linspace(0, fs/2, hN);
         mX = abs(fft(hc,[],2)) / size(hc,2);
+        mX(1) = 0; 
         mX = mX(:,1:hN);
         
         hc_all{end+1} = sum(hc,1);
@@ -55,14 +56,21 @@ end
 
 %% SAVE
 
-hc = cat(1,hc_all{:});
-mX = cat(1,mX_all{:});
+hc = cat(1, hc_all{:});
+fname = 'Slaney_128coch_meddis_timeDomain_meanAcrossCF'; 
+save(fullfile(par.stim_path,fname),'hc','cond_names','t','fs'); 
 
+mX = cat(1, mX_all{:});
 fname = 'Slaney_128coch_meddis_fft_meanAcrossCF'; 
 save(fullfile(par.stim_path,fname),'mX','cond_names','freq'); 
 
-fname = 'Slaney_128coch_meddis_timeDomain_meanAcrossCF'; 
-save(fullfile(par.stim_path,fname),'hc','cond_names','t','fs'); 
+mX = cat(1, mX_all{:}) .^ 2; 
+fname = 'Slaney_128coch_meddis_fft_pow_meanAcrossCF'; 
+save(fullfile(par.stim_path,fname),'mX','cond_names','freq'); 
+
+mX = 20 * log10(cat(1, mX_all{:})); 
+fname = 'Slaney_128coch_meddis_fft_dB_meanAcrossCF'; 
+save(fullfile(par.stim_path,fname),'mX','cond_names','freq'); 
 
 
 

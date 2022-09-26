@@ -7,55 +7,77 @@ frex_to_extract = par.frex_to_extract;
 idx_meterRel = [1:length(frex_to_extract)]; 
 idx_meterUnrel = []; 
 
-coch = load(fullfile(par.stim_path,'Slaney_128coch_meddis_fft_meanAcrossCF.mat')); 
-
 fpath = par.features_path; 
-fname = sprintf('features_roi-%s.csv',roi); 
+fname = sprintf('features_roi-%s.csv', roi); 
 fid = fopen(fullfile(fpath,fname),'w'); 
-fprintf(fid,'subject,rhythm,tone,freq,isMeterRel,amp_eeg,amp_coch\n'); 
+fprintf(fid,'subject,rhythm,tone,freq,isMeterRel,amp_eeg,db_eeg,amp_coch,pow_coch,db_coch\n'); 
 
 for iSub=1:length(par.subjects)
+    
+    subject = par.subjects(iSub); 
+    fprintf('\n\n----------------\nsub-%d\n', subject); 
 
     for iRhythm=1:2
 
+        rhythm = par.rhythms{iRhythm}; 
+        
         for iTone=1:2
 
-            subject = par.subjects(iSub); 
             tone = par.tones{iTone}; 
-            rhythm = par.rhythms{iRhythm}; 
 
             %% EEG 
             
             fpath = fullfile(par.deriv_path, ...
                 sprintf('roi-%s/sub-%03d',roi,subject)); 
 
-            % load fft for the selected ROI 
+            % load fft magnitudes for the selected ROI 
             fname = sprintf('sub-%03d_rhythm-%s_tone-%s_snr-%d-%d_FFT',...
                 subject,rhythm,tone,par.snr_bins_eeg(1), par.snr_bins_eeg(2)); 
 
-            [header_fft,data_fft] = CLW_load(fullfile(fpath,fname)); 
+            [header_fft, data_fft] = CLW_load(fullfile(fpath,fname)); 
             
-            [~,~,z_eeg,~,~,amps_eeg] = getZ(squeeze(data_fft), frex_to_extract, ...
-                idx_meterRel, idx_meterUnrel, 'xstep', header_fft.xstep); 
+            [~,~,~,~,~, amps_eeg] = getZ(...
+                squeeze(data_fft), frex_to_extract, ...
+                idx_meterRel, idx_meterUnrel,...
+                'xstep', header_fft.xstep...
+                ); 
+            
+            % load fft decibels for the selected ROI 
+            fname = sprintf('sub-%03d_rhythm-%s_tone-%s_snr-%d-%d_FFT_dB',...
+                subject,rhythm,tone,par.snr_bins_eeg(1), par.snr_bins_eeg(2)); 
+
+            [header_fft, data_fft] = CLW_load(fullfile(fpath,fname)); 
+            
+            [~,~,~,~,~, db_eeg] = getZ(...
+                squeeze(data_fft), frex_to_extract, ...
+                idx_meterRel, idx_meterUnrel,...
+                'xstep', header_fft.xstep...
+                ); 
 
             %% coch
 
-            if strcmpi(tone,'high')
-                tone_code = 'H'; 
-            else
-                tone_code = 'L'; 
-            end
-            if strcmpi(rhythm,'unsync')
-                rhythm_code = 'unsyncopated'; 
-            else
-                rhythm_code = 'syncopated'; 
-            end
-            fname = sprintf('%s_%s',tone_code,rhythm_code);
-            idx = find(strcmpi(fname,coch.cond_names)); 
+            [header_coch, data_coch] = loadCochFFT(rhythm, tone);
 
-            [~,~,z_coch,~,~,amps_coch] = getZ(coch.mX(idx,:), frex_to_extract, ...
-                idx_meterRel, idx_meterUnrel, 'xstep', coch.freq(2)); 
+            [~,~,~,~,~, amps_coch] = getZ(...
+                squeeze(data_coch), frex_to_extract, ...
+                idx_meterRel, idx_meterUnrel, ...
+                'xstep', header_coch.xstep); 
 
+            [header_coch, data_coch] = loadCochFFT(rhythm, tone, 'pow');
+
+            [~,~,~,~,~, pow_coch] = getZ(...
+                squeeze(data_coch), frex_to_extract, ...
+                idx_meterRel, idx_meterUnrel, ...
+                'xstep', header_coch.xstep); 
+
+            [header_coch, data_coch] = loadCochFFT(rhythm, tone, 'db');
+
+            [~,~,~,~,~, db_coch] = getZ(...
+                squeeze(data_coch), frex_to_extract, ...
+                idx_meterRel, idx_meterUnrel, ...
+                'xstep', header_coch.xstep); 
+            
+            
             %% write to csv
 
             for fi=1:length(frex_to_extract)
@@ -66,9 +88,15 @@ for iSub=1:length(par.subjects)
                     isMeterRel = 0; 
                 end
 
-                fprintf(fid,'%03d,%s,%s,%.3f,%d,%f,%f\n', ...
+                fprintf(...
+                    fid,'%03d,%s,%s,%.3f,%d,%f,%f,%f,%f,%f\n', ...
                     subject, rhythm, tone, frex_to_extract(fi), isMeterRel, ...
-                    amps_eeg(fi), amps_coch(fi)); 
+                    amps_eeg(fi), ...
+                    db_eeg(fi), ...
+                    amps_coch(fi), ...
+                    pow_coch(fi), ...
+                    db_coch(fi) ...
+                    ); 
 
             end
 

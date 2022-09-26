@@ -17,7 +17,10 @@ prepare_frex <- function(df, frex, frex_meterRel){
     # get zscores 
     df <- ddply(df, .(subject,rhythm,tone), function(d){
         d$z_eeg <- (d$amp_eeg-mean(d$amp_eeg))/sd(d$amp_eeg)
+        d$z_eeg_db <- (d$db_eeg-mean(d$db_eeg))/sd(d$db_eeg)
         d$z_coch <- (d$amp_coch-mean(d$amp_coch))/sd(d$amp_coch)
+        d$z_coch_pow <- (d$pow_coch-mean(d$pow_coch))/sd(d$pow_coch)
+        d$z_coch_db <- (d$db_coch-mean(d$db_coch))/sd(d$db_coch)
         return(d)
     })
     # get normalized amplitudes (from 0 to 1)
@@ -30,24 +33,33 @@ prepare_frex <- function(df, frex, frex_meterRel){
     # take mean amplitude across all frequencies of interest 
     df_mean_amp <- summaryBy(amp_eeg ~ subject+rhythm+tone, FUN=mean, data=df, keep.names=T)
     # take mean zscore across meter-related frequencies 
-    df_meter <- summaryBy(amp_eeg+amp_eeg_norm+z_eeg+z_coch ~ subject+rhythm+tone+isMeterRel, 
+    df_meter <- summaryBy(amp_eeg + amp_eeg_norm + z_eeg + z_eeg_db + z_coch + z_coch_pow + z_coch_db ~
+                              subject + rhythm + tone + isMeterRel, 
                           FUN=mean, data=df, keep.names=T)
     return(list(mean_amp=df_mean_amp, 
                 meter=df_meter))
 }
 
-tVsCoch <- function(df){
-    res = t.test(df$z_eeg, mu=df$z_coch[1], alternative='greater')
+tVsCoch <- function(df, feature_eeg='z_eeg', feature_coch='z_coch'){
+    res <- t.test(df[, feature_eeg], mu=df[1, feature_coch], alternative='greater')
+    d <- cohens_d(df[, feature_eeg], mu=df[1, feature_coch], alternative='greater')
     data.frame(t = res$statistic, 
                df = res$parameter, 
+               cohens_d = d$Cohens_d, 
+               d_CI_low = d$CI_low, 
+               d_CI_high = d$CI_high, 
                p = res$p.value, 
                signif = stars.pval(res$p.value))
 }
 
 tVs0 <- function(df){
-    res = t.test(df$z_eeg, mu=0, alternative='greater')
+    res <- t.test(df$z_eeg, mu=0, alternative='greater')
+    d <- cohens_d(df$z_eeg, mu=0, alternative='greater')
     data.frame(t = res$statistic, 
                df = res$parameter, 
+               cohens_d = d$Cohens_d, 
+               d_CI_low = d$CI_low, 
+               d_CI_high = d$CI_high, 
                p = res$p.value, 
                signif = stars.pval(res$p.value))
 }
@@ -55,24 +67,37 @@ tVs0 <- function(df){
 tMeterRelvsUnrel <- function(df, feature='amp_eeg'){
     val_meterRel <- df[df$isMeterRel==TRUE,feature]
     val_meterUnrel <- df[df$isMeterRel==FALSE,feature]
-    res = t.test(val_meterRel, val_meterUnrel, paired=TRUE, alternative='greater')
+    res <- t.test(val_meterRel, val_meterUnrel, paired=TRUE, alternative='greater')
+    d <- cohens_d(val_meterRel, val_meterUnrel, paired=TRUE, alternative='greater')
     data.frame(t = res$statistic, 
                df = res$parameter, 
+               d = d$Cohens_d, 
+               d_CI_low = d$CI_low, 
+               d_CI_high = d$CI_high, 
                p = res$p.value, 
                signif = stars.pval(res$p.value))
 }
 
-format_anova_table <- function(res){
-    res <- res$ANOVA
+format_anova_table <- function(model){
+    res <- model$ANOVA
     res$F <- round(res$F,2)
     res$p <- round(res$p,5)
-    res$ges <- round(res$ges,3)
+    res$ges <- NULL
+    
+    esq <- eta_squared(model$aov, partial=TRUE)
+    res$`η2(partial)` <- round(esq$Eta2_partial, 2)
+    res$`η2_CI_low` <- round(esq$CI_low, 2)
+    res$`η2_CI_high` <- round(esq$CI_high, 2)
+    
+    res <- res %>% 
+        relocate(c('p', 'p<.05'), .after=last_col())
+    
     return(res)
 }
 
 get_pairwise_contrasts <- function(model){
     # calcualte contrast
-    emm <- emmeans(model_z_meter_posthoc, 'tone')
+    emm <- emmeans(model, 'tone')
     c <- contrast(emm, 'pairwise', adjust='none')
     # get pvalues
     c_pval <- as.data.frame(c)
@@ -83,12 +108,12 @@ get_pairwise_contrasts <- function(model){
     # get CIs
     c_ci <- as.data.frame(confint(c, adjust=adjust_method))
     # merge it together
-    posthoc_z_meter <- merge(c_pval, c_ci %>% dplyr::select(contrast,lower.CL,upper.CL), by=c('contrast'))
-    posthoc_z_meter <- posthoc_z_meter %>% 
+    c_merged <- merge(c_pval, c_ci %>% dplyr::select(contrast,lower.CL,upper.CL), by=c('contrast'))
+    c_merged <- c_merged %>% 
         dplyr::select(contrast,estimate,df,t.ratio,lower.CL,upper.CL,p.value,significance)
-    posthoc_z_meter <- posthoc_z_meter %>% 
+    c_merged <- c_merged %>% 
         mutate_at(c('estimate','t.ratio','lower.CL','upper.CL'), round, digits=3)
-    return(posthoc_z_meter)
+    return(c_merged)
 }
 
 plot_z_meter <- function(df){
