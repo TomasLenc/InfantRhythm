@@ -13,6 +13,7 @@ fieldtrip_path = '/home/tomo/Documents/MATLAB/fieldtrip';
 
 source_path = fullfile(experiment_path,'source'); 
 stim_path = fullfile(experiment_path,'stimuli'); 
+lowhigh_path = fullfile(experiment_path,'raw_lowhigh'); 
 
 deriv_path = fullfile(experiment_path,'derivatives'); 
 if ~isdir(deriv_path)

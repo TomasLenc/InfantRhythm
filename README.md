@@ -19,9 +19,9 @@ git checkout 124106836fdcd1d1bb3e028f721bcffea904b5c3
 
 To run the whole pipeline, clone the current repository, rename the folder to `code` and place it in the project root directory. 
 
-Download the EEG data from [this GIN repository](https://gin.g-node.org/TomasLenc/XPInfant_source) (either using [datalad](https://www.datalad.org/) or simply by downloading the dataset as .zip). Extract the zip if needed, rename the folder to `source` and place into the root directory. 
+Download the EEG data from [this GIN repository](https://gin.g-node.org/TomasLenc/XPInfant_source) (either using [datalad](https://www.datalad.org/) or simply by downloading the dataset as .zip) or from [OSF](https://osf.io/9wf5u/). Extract the zip if needed, rename the folder to `source` and place into the root directory. 
 
-Repeat the same procedure to download the stimulus files from [this GIN repository](https://gin.g-node.org/TomasLenc/XPInfant_stimuli) and rename the folder to `stimuli`. 
+Repeat the same procedure to download the stimulus files (again either from [this GIN repository](https://gin.g-node.org/TomasLenc/XPInfant_stimuli) or from [OSF](https://osf.io/9wf5u/)) and rename the folder to `stimuli`. 
 
 Your project root directory should look like this: 
 ```

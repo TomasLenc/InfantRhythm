@@ -36,12 +36,12 @@ for iSel=1:length(chan_sel_methods)
     extractFeatures(chan_sel_methods{iSel})
 end
 
-% plot and save a summary figure for each individual participant
-for iSub=1:length(par.subjects)
-    for iSel=1:length(chan_sel_methods)
-        plotSummary(par.subjects(iSub), chan_sel_methods{iSel})
-    end
-end
+% % plot and save a summary figure for each individual participant
+% for iSub=1:length(par.subjects)
+%     for iSel=1:length(chan_sel_methods)
+%         plotSummary(par.subjects(iSub), chan_sel_methods{iSel})
+%     end
+% end
 
 % plot and save a summary figure for grand average across all participants 
 for iSel=1:length(chan_sel_methods)

@@ -81,8 +81,14 @@ for iRhythm=1:2
         d = any(squeeze(data_fft(:,:,1,1,1,idx_min:idx_max))>10, 2); 
         if sum(d)>10
             warning('too much noise in: sub-%03d %s %s',subject,rhythm,tone);
-            if ~ismember(subject,bad_subjects_table.subject)
+            if ~ismember(subject, bad_subjects_table.subject)
                 bad_subjects_table.subject(end+1) = subject; 
+            end
+        else
+            if ismember(subject, bad_subjects_table.subject)
+                idx = find(bad_subjects_table.subject == subject); 
+                bad_subjects_table = ...
+                    bad_subjects_table(bad_subjects_table.subject ~= subject, :); 
             end
         end
 

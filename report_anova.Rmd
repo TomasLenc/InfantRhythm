@@ -18,19 +18,24 @@ library(doBy)
 library(Rmisc)
 library(plyr)
 library(dplyr)
+library(tidyr)
 library(gtools)
 
+library(boot)
 library(ez)
 library(lme4)
 library(lmerTest)
 library(car)
 library(emmeans)
 library(effectsize)
+library(Superpower)
+library(pwr)
 
 library(ggplot2)
 library(cowplot)
 library(colorspace)
 library(ggnewscale)
+library(gghalves)
 
 # define functions 
 source('utils.R')
@@ -38,7 +43,8 @@ source('utils.R')
 
 ```{r}
 # define parameters
-rm_sub <- c(1,14,15,16,18)
+df_bad_sub <- read.csv(file.path(experiment_path, 'derivatives', 'bad_subjects.csv'))
+rm_sub <- df_bad_sub$subject
 
 frex <- round(1/2.4 * c(2:12), 3)
 frex_meterRel <- round(1/2.4 * c(3,6,9,12), 3)
@@ -59,33 +65,44 @@ fontsize <-14
 
 # Main analysis
 
-```{r}
-# load data
-path_features <- file.path(experiment_path, sprintf('derivatives/features/features_roi-%s.csv', roi))
-df_feat <- read.csv(path_features)
-df_feat$subject <- factor(df_feat$subject)
-df_feat$rhythm <- factor(df_feat$rhythm, levels=c('unsync','sync'))
-df_feat$tone <- factor(df_feat$tone, levels=c('low','high'))
-
-# remove bad subjects 
-df_feat <- filter(df_feat, !subject%in%rm_sub)
-
-```
-
 
 ```{r}
 # print a table summarizing frequencies of interest
 pander(get_frex_report(frex, frex_meterRel), caption='Frequencies of interest.')
+```
+
+```{r}
+# load data
+read_data <- function(data_path) {
+    df <- read.csv(data_path)
+    df$subject <- factor(df$subject)
+    df$rhythm <- factor(df$rhythm, levels=c('unsync','sync'))
+    df$tone <- factor(df$tone, levels=c('low','high'))
+    return(df)
+}
+
+path_features <- file.path(experiment_path, sprintf('derivatives/features/features_roi-%s.csv', roi))
+df_feat <- read_data(path_features)
+
+# remove bad subjects 
+df_feat <- filter(df_feat, !subject%in%rm_sub)
+
+# load data from Lenc 2018
+path_lowhigh <- file.path(experiment_path, 'code/experiment-lowhigh_features.csv')
+df_feat_lowhigh <- read_data(path_lowhigh)
 
 ```
 
 ```{r}
-# apply the current selectino of meter-related/unrelated frequencies. 
+# apply the current selection of meter-related/unrelated frequencies. 
 data <- prepare_frex(df_feat, frex, frex_meterRel)
 df_amp_mean <- data$mean_amp
 df_meter <- data$meter
 df_meterRel <- filter(data$meter, isMeterRel==TRUE)
 
+# do the same for the data from Lenc 2018
+data_lowhigh <- prepare_frex(df_feat_lowhigh, frex, frex_meterRel, feat_to_zscore=c('amp_eeg', 'amp_coch'))
+df_meterRel_lowhigh <- filter(data_lowhigh$meter, isMeterRel==TRUE)
 ```
 
 ```{r}
@@ -121,13 +138,97 @@ pander(res, justify='left',
 ```{r}
 pander(df_meterRel %>% 
            filter(subject==2) %>% 
-           dplyr::select(rhythm,tone,z_coch) %>% 
-           mutate(z_coch=round(z_coch,2)),
+           dplyr::select(rhythm,tone,z_amp_coch) %>% 
+           mutate(z_amp_coch=round(z_amp_coch,2)),
        justify='left', 
        caption='Mean meter-related zscore for the cochlear model.')
 ```
 
-For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_coch[1],3)` for the high tone. 
+<br> 
+
+### Power analysis 
+
+First, we use the same frequencies of interest as for the current study to re-analyze the data from Lenc 2018 (PNAS).  
+
+We can start with the main comparison of the current study: testing whether there is selective neural enhancement of meter-related frequencies. To this end, we want to compare the compare mean z-score at meter-related frequencies in the EEG to cochlear model, using a one-sample t-test.  
+
+```{r}
+# test meter-rel zscore against cochlear model 
+res <- ddply(df_meterRel_lowhigh, .(rhythm,tone), tVsCoch)
+res$p <- p.adjust(res$p, method=adjust_method)
+res$signif <- stars.pval(res$p)
+
+pander(res, justify='left', digits=c(1,1,3,1,2,2,2,3,1), 
+       caption='T-test of mean z-score at meter-related frequencies against cochlear model.')
+```
+
+We can take the mean effect size from Lenc 2018 across the high and low tone condition, and aim for 99% power.  
+
+
+```{r}
+d <- filter(res, rhythm=='sync') %>% select(cohens_d) %>% unlist() %>% mean()
+pwr.t.test(d=d, power=0.99, sig.level=0.05, type='one.sample', alternative='greater')
+```
+
+<br> 
+
+Next, we can look at the effect of tone frequency.  
+
+```{r}
+model <- ezANOVA(data=df_meterRel_lowhigh, dv=z_amp_eeg, wid=subject, within=.(rhythm,tone), return_aov=TRUE)
+res <- format_anova_table(model)
+pander(res, justify='left',
+       caption='ANOVA on mean zscore at meter-related frequencies.')
+```
+
+Unlike in the original analysis, the interaction between rhythm and tone is only marginally significant when we use the current frequency selection (this is not surprising given the pvalue of 0.04 even in the original analysis).  
+
+Hence, we will focus on the main effect of tone, which seems robust across analysis parameters.  
+
+We use the data from Lenc 2018 to get parameters for power simulation with the [Superpower](https://aaroncaldwell.us/SuperpowerBook/) package.  
+
+```{r, fig.width=4, fig.height=2}
+df_wide <- df_meterRel_lowhigh %>% 
+    pivot_wider(id_cols=subject, names_from=c(rhythm, tone), values_from=z_amp_eeg) %>%
+    dplyr::select(!subject)
+
+correlation_matrix <- cor(df_wide)
+standard_deviations <- sapply(df_wide, sd)
+means <- sapply(df_wide, mean)
+
+# mean_sd <- mean(standard_deviations)
+# mean_corr <- mean(correlation_matrix[row(correlation_matrix) < col(correlation_matrix)])
+
+power_sim_design <- ANOVA_design(
+    design='2w*2w',
+    n=14,
+    mu=means,
+    sd=standard_deviations,
+    r=correlation_matrix,
+    label_list=list(rhythm=levels(df_meterRel_lowhigh$rhythm),
+                     tone=levels(df_meterRel_lowhigh$tone))
+)
+
+```
+
+```{r}
+plot_power(power_sim_design, max_n=50, alpha_level=0.05, desired_power=80)
+```
+
+
+
+
+
+
+
+
+<br> <br> <br> 
+
+---
+
+### Infant data
+
+For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_amp_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_amp_coch[1],3)` for the high tone. 
 
 ```{r, fig.width=4, fig.height=2}
 p <- plot_z_meter(df_meterRel)
@@ -136,11 +237,27 @@ p
 ```
 
 ```{r}
-model <- ezANOVA(data=df_meterRel, dv=z_eeg, wid=subject, within=.(rhythm,tone), return_aov=TRUE)
+model <- ezANOVA(data=df_meterRel, dv=z_amp_eeg, wid=subject, within=.(rhythm,tone), return_aov=TRUE)
 res <- format_anova_table(model)
 pander(res, justify='left',
        caption='ANOVA on mean zscore at meter-related frequencies.')
 ```
+
+
+<br> 
+
+The same ANOVA using dB-normalized EEG spectra.  
+
+```{r}
+model <- ezANOVA(data=df_meterRel, dv=z_db_eeg, wid=subject, within=.(rhythm,tone), return_aov=TRUE)
+res <- format_anova_table(model)
+pander(res, justify='left',
+       caption='ANOVA on mean dB zscore at meter-related frequencies.')
+```
+
+
+
+
 
 <br> 
 
@@ -166,7 +283,7 @@ res <- ddply(df_meterRel, .(rhythm,tone), tVsCoch)
 res$p <- p.adjust(res$p, method=adjust_method)
 res$signif <- stars.pval(res$p)
 
-pander(res, justify='left', digits=c(1,1,3,1,2,2,2,3,1), 
+pander(res, justify='left', digits=c(1,1,3,1,2,2,2,2,3,1), 
        caption='T-test of mean z-score at meter-related frequencies against cochlear model.')
 ```
 
@@ -180,7 +297,7 @@ Here the z-scores were taken using **decibels** in both EEG and cochlear model.
 ```{r}
 # test meter-rel zscore (eeg decibel) against cochlear model (power)
 res <- ddply(df_meterRel, .(rhythm, tone), 
-             function(df) tVsCoch(df, feature_eeg='z_eeg_db', feature_coch='z_coch_pow'))
+             function(df) tVsCoch(df, feature_eeg='z_db_eeg', feature_coch='z_pow_coch'))
 res$p <- p.adjust(res$p, method=adjust_method)
 res$signif <- stars.pval(res$p)
 
@@ -197,7 +314,7 @@ Here the z-scores were taken using **decibels** in EEG and **power** in cochlear
 ```{r}
 # test meter-rel zscore against cochlear model (decibel)
 res <- ddply(df_meterRel, .(rhythm, tone), 
-             function(df) tVsCoch(df, feature_eeg='z_eeg_db', feature_coch='z_coch_db'))
+             function(df) tVsCoch(df, feature_eeg='z_db_eeg', feature_coch='z_db_coch'))
 res$p <- p.adjust(res$p, method=adjust_method)
 res$signif <- stars.pval(res$p)
 
@@ -215,6 +332,18 @@ pander(res, justify='left', digits=c(1,1,3,1,2,2,2,3,1),
 
 ## Meter amp (normalized) 
 
+```{r, fig.width=4.6, fig.height=4.2}
+p <- plot_amp_meter(df_meter, col_name_eeg='amp_eeg_norm')
+ggsave(file.path(reports_path, sprintf('roi-%s_ampNormMeter.pdf', roi)), p, width=4.6, height=4.2)
+p
+```
+
+```{r, fig.width=3, fig.height=2}
+p <- plot_amp_meter_diff(df_meter, col_name_eeg='amp_eeg_norm')
+ggsave(file.path(reports_path, sprintf('roi-%s_ampNormMeterDiff.pdf', roi)), p, width=3, height=2)
+p
+```
+
 ```{r}
 model <- ezANOVA(data=df_meter, dv=amp_eeg_norm, wid=subject, within=.(rhythm,tone,isMeterRel), return_aov=TRUE)
 res <- format_anova_table(model)
@@ -229,7 +358,7 @@ res <- ddply(df_meter, .(rhythm,tone), function(df) tMeterRelvsUnrel(df, feature
 res$p <- p.adjust(res$p, method=adjust_method)
 res$signif <- stars.pval(res$p)
 
-pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+pander(res, justify='left', digits=c(1,1,3,1,2,2,2,2,3,1), 
        caption='T-test between normalized amplitude at meter-rel vs. undrelated frequencies. ')
 ```
 
@@ -245,6 +374,19 @@ pander(res, justify='left', digits=c(1,1,3,1,1,1),
 
 ## Meter amp (raw) 
 
+```{r, fig.width=4.6, fig.height=4.2}
+p <- plot_amp_meter(df_meter, col_name_eeg='amp_eeg')
+ggsave(file.path(reports_path, sprintf('roi-%s_ampMeter.pdf', roi)), p, width=4.6, height=4.2)
+p
+```
+
+```{r, fig.width=3, fig.height=2}
+p <- plot_amp_meter_diff(df_meter, col_name_eeg='amp_eeg')
+ggsave(file.path(reports_path, sprintf('roi-%s_ampMeterDiff.pdf', roi)), p, width=3, height=2)
+p
+```
+
+
 ```{r}
 model <- ezANOVA(data=df_meter, dv=amp_eeg, wid=subject, within=.(rhythm,tone,isMeterRel), return_aov=TRUE)
 res <- format_anova_table(model)
@@ -254,12 +396,50 @@ pander(res,
 ```
 
 ```{r}
+# break down interaction if present
+if (res[res$Effect == 'rhythm:tone:isMeterRel', 'p'] < 0.05){
+    model_unsync <- ezANOVA(data=filter(df_meter, rhythm=='unsync'),
+                            dv=amp_eeg, wid=subject, within=.(tone,isMeterRel), return_aov=TRUE)
+    res_unsync <- format_anova_table(model_unsync)
+    pander(res_unsync, 
+           justify='left',
+           caption='ANOVA on mean raw amplitude at meter-related vs. -unrelated frequencies (unsyncopated rhythm)')
+}
+```
+```{r}
+# break down further :)
+if (res_unsync[res_unsync$Effect == 'tone:isMeterRel', 'p'] < 0.05){
+    # t-test between raw amplitude for low vs. high (separate test for meter-rel vs. unrel freq)
+    t <- ddply(filter(df_meter, rhythm=='unsync'),
+                 .(isMeterRel), 
+                 function(df) tLowVsHigh(df, feature='amp_eeg'))
+    t$p <- p.adjust(t$p, method=adjust_method)
+    t$signif <- stars.pval(t$p)
+    
+    pander(t, justify='left', digits=c(1,1,3,1,2,2,2,2,3,1), 
+           caption='T-test between raw amplitude in low vs. high condition. (unsyncopated rhythm)')
+}
+```
+
+```{r}
+if (res[res$Effect == 'rhythm:tone:isMeterRel', 'p'] < 0.05){
+    model_sync <- ezANOVA(data=filter(df_meter, rhythm=='sync'),
+                            dv=amp_eeg, wid=subject, within=.(tone,isMeterRel), return_aov=TRUE)
+    res_sync <- format_anova_table(model_sync)
+    pander(res_sync, 
+           justify='left',
+           caption='ANOVA on mean raw amplitude at meter-related vs. -unrelated frequencies (syncopated rhythm)')    
+}
+```
+
+
+```{r}
 # t-test between raw amplitude at meter-rel vs. undrelated frequencies
 res <- ddply(df_meter, .(rhythm,tone), function(df) tMeterRelvsUnrel(df, feature='amp_eeg'))
 res$p <- p.adjust(res$p, method=adjust_method)
 res$signif <- stars.pval(res$p)
 
-pander(res, justify='left', digits=c(1,1,3,1,1,1), 
+pander(res, justify='left', digits=c(1,1,3,1,2,2,2,3,1), 
        caption='T-test between raw amplitude at meter-rel vs. undrelated frequencies. ')
 ```
 
@@ -315,18 +495,21 @@ pander(res, justify='left',
 ## Meter zscore 
 
 ```{r}
-pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_coch) %>% mutate(z_coch=round(z_coch,2)), 
+pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_amp_coch) %>% mutate(z_amp_coch=round(z_amp_coch,2)), 
        justify='left', caption='Mean meter-related zscore for the cochlear model.')
 ```
 
-For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_coch[1],3)` for the high tone. 
+For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_amp_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_amp_coch[1],3)` for the high tone. 
 
 ```{r, fig.width=4, fig.height=2}
-plot_z_meter(df_meterRel)
+p <- plot_z_meter(df_meterRel)
+ggsave(file.path(reports_path, sprintf('roi-%s_frex-without5_zMeterRel.pdf',roi)), 
+       p, width=4, height=2)
+p
 ```
 
 ```{r}
-model <- ezANOVA(data=df_meterRel, dv=z_eeg, wid=subject, within=.(rhythm,tone), return_aov=TRUE)
+model <- ezANOVA(data=df_meterRel, dv=z_amp_eeg, wid=subject, within=.(rhythm,tone), return_aov=TRUE)
 res <- format_anova_table(model)
 pander(res, justify='left',
        caption='ANOVA on mean zscore at meter-related frequencies.')
@@ -426,18 +609,21 @@ pander(res, justify='left',
 ## Meter zscore 
 
 ```{r}
-pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_coch) %>% mutate(z_coch=round(z_coch,2)), 
+pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_amp_coch) %>% mutate(z_amp_coch=round(z_amp_coch,2)), 
        justify='left', caption='Mean meter-related zscore for the cochlear model.')
 ```
 
-For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_coch[1],3)` for the high tone. 
+For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_amp_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_amp_coch[1],3)` for the high tone. 
 
 ```{r, fig.width=4, fig.height=2}
-plot_z_meter(df_meterRel)
+p <- plot_z_meter(df_meterRel)
+ggsave(file.path(reports_path, sprintf('roi-%s_frex-without0.83_zMeterRel.pdf',roi)), 
+       p, width=4, height=2)
+p
 ```
 
 ```{r}
-model <-ezANOVA(data=df_meterRel, dv=z_eeg, wid=subject, within=.(rhythm,tone), return_aov=TRUE)
+model <-ezANOVA(data=df_meterRel, dv=z_amp_eeg, wid=subject, within=.(rhythm,tone), return_aov=TRUE)
 res <- format_anova_table(model)
 pander(res, justify='left',
        caption='ANOVA on mean zscore at meter-related frequencies.')
@@ -535,18 +721,18 @@ pander(res, justify='left',
 ## Meter zscore 
 
 ```{r}
-pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_coch) %>% mutate(z_coch=round(z_coch,2)), 
+pander(df_meterRel %>% filter(subject==2) %>% dplyr::select(rhythm,tone,z_amp_coch) %>% mutate(z_amp_coch=round(z_amp_coch,2)), 
        justify='left', caption='Mean meter-related zscore for the cochlear model.')
 ```
 
-For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_coch[1],3)` for the high tone. 
+For the syncopated rhythm, meter zscore was `r round(filter(df_meterRel,rhythm=='sync'&tone=='low')$z_amp_coch[1],3)` for the low tone and `r round(filter(df_meterRel,rhythm=='sync'&tone=='high')$z_amp_coch[1],3)` for the high tone. 
 
 ```{r, fig.width=4, fig.height=2}
 plot_z_meter(df_meterRel)
 ```
 
 ```{r}
-model <- ezANOVA(data=df_meterRel, dv=z_eeg, wid=subject, within=.(rhythm,tone), return_aov=TRUE)
+model <- ezANOVA(data=df_meterRel, dv=z_amp_eeg, wid=subject, within=.(rhythm,tone), return_aov=TRUE)
 res <- format_anova_table(model)
 pander(res, justify='left',
        caption='ANOVA on mean zscore at meter-related frequencies.')
