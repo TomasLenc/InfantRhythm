@@ -13,6 +13,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+library(readxl)
 library(pander)
 library(doBy)
 library(Rmisc)
@@ -58,6 +59,36 @@ names(cols_individual) <- names(cols)
 fontsize <-14
 
 ```
+
+
+
+<br><br><br>
+
+--- 
+
+# Demographics
+
+```{r}
+df_partic_info <- read_excel(file.path(experiment_path, 'derivatives', 'Participant Data_Sylvie_TL.xlsx'))
+
+df_partic_info$subject <- as.numeric(substr(df_partic_info$`Participant ID`, 6, 8))
+
+# remove bad subjects 
+df_partic_info <- filter(df_partic_info, !subject%in%rm_sub & !is.na(subject))
+
+n_partic <- nrow(df_partic_info)
+n_females <- sum(df_partic_info$Sex == 'F')
+mean_age <- mean(df_partic_info$`Age at Test`, na.rm=TRUE)
+min_age <- min(df_partic_info$`Age at Test`, na.rm=TRUE)
+max_age <- max(df_partic_info$`Age at Test`, na.rm=TRUE)
+
+```
+
+There were `r n_partic` participants in total (`r n_females` females).  
+
+The mean age was `r mean_age` (min = `r min_age`, max = `r max_age`).  
+
+
 
 <br><br><br>
 
