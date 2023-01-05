@@ -4,9 +4,9 @@ par = getParams();
 
 
 if strcmpi(rhythm,'unsync')
-    rhythm = 'unsyncopated'; 
+    rhythm_code = 'unsyncopated'; 
 else
-    rhythm = 'syncopated'; 
+    rhythm_code = 'syncopated'; 
 end
 if strcmpi(tone,'high')
     tone = 'H'; 
@@ -15,14 +15,14 @@ else
 end
 
 
-fname = sprintf('%s_%s_*.wav',tone,rhythm); 
+fname = sprintf('%s_%s_*.wav',tone,rhythm_code); 
 d = dir(fullfile(par.stim_path, fname)); 
 
 [s,fs] = audioread(fullfile(d.folder,d.name)); 
 
 if any(strcmpi(varargin,'cycle'))
-   idx_start = 1; 
-   idx_end = round(par.cycle_duration*fs); 
+   idx_start = round(par.erp_t_start_plot(rhythm) * fs) + 1; 
+   idx_end = round(par.cycle_duration * fs); 
    s = s(idx_start : idx_end); 
 end
 

@@ -26,7 +26,6 @@ for iTone=1:length(tones)
         disp(d.name); 
         
         [s,fs] = audioread(fullfile(d.folder, d.name));
-        t = [0:length(s)-1]/fs; 
         
         cfArray = ERBSpace(low_freq, fs/2, nchan);
         fcoefs = MakeERBFilters(fs, nchan, low_freq);
@@ -40,7 +39,40 @@ for iTone=1:length(tones)
             c=filter([1],[1 -.99],c);
             hc(j,:)=c;        
         end
-
+        
+        % butter filter to make it equivalent to the neural data!
+        [b, a] = butter(...
+            par.filter_order / 2,...
+            [par.filter_low_cutoff, par.filter_high_cutoff] ./ (fs/2), ...
+            'bandpass'...
+            ); 
+        
+        for j=1:size(hc, 1)
+            hc(j, :) = filtfilt(b, a, hc(j, :));
+        end
+        
+        % cut off first and last few cycles to get rid of edge artifacts from
+        % filter 
+        assert(length(s)/fs == par.trial_duration)
+        
+        edge_rm_duration = par.cycle_duration * 2; 
+        
+        idx_start = round(edge_rm_duration * fs); 
+        N = round((par.trial_duration - 2 * edge_rm_duration) * fs); 
+        
+        hc = hc(:, idx_start+1 : idx_start+N); 
+        
+        assert(size(hc, 2)/fs == par.trial_duration - 2 * edge_rm_duration)
+        
+        t = [0 : size(hc, 2)-1]/fs; 
+        
+%         % visual check for filtering artifacts
+%         figure
+%         plot(t, sum(hc, 1), 'linew', 1.5)
+%         xlim([0, 20])
+%         xlim([40, Inf])                
+        
+        % FFT
         hN = length(hc(1,:))/2+1;
         freq = linspace(0, fs/2, hN);
         mX = abs(fft(hc,[],2)) / size(hc,2);

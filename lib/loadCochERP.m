@@ -24,7 +24,8 @@ assert(length(row_idx)==1)
 
 
 if any(strcmpi(varargin,'cycle'))
-    [t, res] = getCycleErp(coch.hc(row_idx,:), coch.fs, 2.4); 
+    [t, res] = getCycleErp(coch.hc(row_idx,:), coch.fs, 2.4, ...
+                           'start_time', par.erp_t_start_plot(rhythm)); 
 else
     res = coch.hc(row_idx,:);
     t = [0:length(res)-1]/coch.fs; 

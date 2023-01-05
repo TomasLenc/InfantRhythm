@@ -2,13 +2,13 @@ function params=getParams()
 
 % ========== manually update these paths before running the analysis ==========
 % path the the experiment root folder 
-experiment_path = '/datadisk/Dropbox/projects/XPInfant'; 
+experiment_path = '/datadisk/projects/InfantRhythm'; 
 
 % path the letswave6
-letswave_path = '/datadisk/Dropbox/libraries/matlab/_neuro/letswave6-master';
+letswave_path = '/datadisk/projects/InfantRhythm/letswave6';
 
 % path to fieldtrip
-fieldtrip_path = '/home/tomo/Documents/MATLAB/fieldtrip';
+fieldtrip_path = '/datadisk/projects/InfantRhythm/fieldtrip';
 % ============================================================================
 
 source_path = fullfile(experiment_path,'source'); 
@@ -43,6 +43,13 @@ rhythms = {'unsync','sync'};
 trial_duration = 60;
 
 cycle_duration = 2.4; 
+
+grid_ioi = 0.2; 
+
+
+filter_order = 4; 
+filter_low_cutoff = 0.5; 
+filter_high_cutoff = 30; 
 
 
 % mastoids 
@@ -102,6 +109,8 @@ amp_around_alpha = 0.001;
 
 
 %% plotting 
+
+erp_t_start_plot = containers.Map(rhythms, {3 * grid_ioi, 0}); 
 
 col_meterRel = [222 45 38]/255; 
 col_meterUnrel = [49, 130, 189]/255; 

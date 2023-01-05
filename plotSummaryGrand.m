@@ -59,7 +59,8 @@ for iSub=1:length(subjects2run)
             fname = sprintf('sub-%03d_rhythm-%s_tone-%s_time',subject,rhythm,tone); 
             [header_time,data_time] = CLW_load(fullfile(fpath,fname)); 
 
-            [t_erp, erp, sem_erp] = getCycleErp(data_time, 1/header_time.xstep, 2.4); 
+            [t_erp, erp, sem_erp] = getCycleErp(data_time, 1/header_time.xstep, 2.4, ...
+                                                'start_time', par.erp_t_start_plot(rhythm)); 
             erp_all{iSub,iRhythm,iTone} = erp; 
 
             % load FFT averaged across roi channels

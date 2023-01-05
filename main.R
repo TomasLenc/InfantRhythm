@@ -1,7 +1,7 @@
 rm(list=ls())
 
 # ============== set this to your dataset root path ============== 
-experiment_path <- '/datadisk/Dropbox/projects/XPInfant'
+experiment_path <- '/datadisk/projects/InfantRhythm'
 # ================================================================
 
 reports_path <- file.path(experiment_path, 'derivatives/reports')

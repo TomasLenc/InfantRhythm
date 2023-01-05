@@ -13,18 +13,18 @@ importLetswave;
 cochlear_model; 
 
 % preprocess EEG data 
-for iSub=1:length(par.subjects)
+parfor iSub=1:length(par.subjects)
     preproc(par.subjects(iSub)); 
 end
 
 % get spectra and ERP for one rhythm cycle for ALL channels (this will be used 
 % for topoplots and for selecting channels with greatest overall response)
-for iSub=1:length(par.subjects)
+parfor iSub=1:length(par.subjects)
     procAllChan(par.subjects(iSub)); 
 end
 
 % get spectra and ERP for one rhythm cycle for a selection of channels 
-for iSub=1:length(par.subjects)
+parfor iSub=1:length(par.subjects)
     for iSel=1:length(chan_sel_methods)
         procROI(par.subjects(iSub), chan_sel_methods{iSel})
     end
@@ -32,7 +32,7 @@ end
 
 % extract magnitudes at frequencies of interest and save to text file that will
 % be loaded in R
-for iSel=1:length(chan_sel_methods)
+parfor iSel=1:length(chan_sel_methods)
     extractFeatures(chan_sel_methods{iSel})
 end
 
